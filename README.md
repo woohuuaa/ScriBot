@@ -18,19 +18,18 @@ ScriBot is a RAG-based (Retrieval-Augmented Generation) Q&A chatbot for the KDAI
 ┌─────────────────────────────────────────────────────────────┐
 │                    FastAPI RAG Service                      │
 │                                                             │
-│  POST /api/index      ← Index docs (33 MDX files)          │
-│  POST /api/chat       ← SSE streaming response             │
-│  GET  /api/health     ← Health check                       │
+│  POST /api/index      ← Index docs (33 MDX files)           │
+│  POST /api/chat       ← SSE streaming response              │
+│  GET  /api/health     ← Health check                        │
 └─────────────────────────┬───────────────────────────────────┘
                           │
         ┌─────────────────┼─────────────────┐
         ▼                 ▼                 ▼
 ┌─────────────┐   ┌───────────────┐   ┌──────────────┐
-│   Ollama    │   │    Qdrant    │   │  .mdx files  │
-│ LLM + Emb  │   │  (Vector DB) │   │ (33 files)   │
+│   Ollama    │   │    Qdrant     │   │  .mdx files  │
+│ LLM + Emb   │   │  (Vector DB)  │   │ (33 files)   │
 └─────────────┘   └───────────────┘   └──────────────┘
 ```
-
 ## Tech Stack
 
 | Component | Choice | Reason |
