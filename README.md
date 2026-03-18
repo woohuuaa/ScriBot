@@ -18,17 +18,17 @@ ScriBot is a side project that implements a full RAG (Retrieval-Augmented Genera
 ┌─────────────────────────────────────────────────────────────┐
 │                    FastAPI RAG Service                      │
 │                                                             │
-│  POST /api/index      ← Index docs (33 MDX files)          │
-│  POST /api/chat       ← SSE streaming response             │
-│  GET  /api/health     ← Health check                        │
-└─────────────────────────┬───────────────────────────────────┘
-                           │
-         ┌─────────────────┼─────────────────┐
-         ▼                 ▼                 ▼
-┌─────────────┐   ┌───────────────┐   ┌──────────────┐
-│   Ollama    │   │    Qdrant     │   │  .mdx files  │
-│ LLM + Emb   │   │  (Vector DB)  │   │ (33 files)   │
-└─────────────┘   └───────────────┘   └──────────────┘
+│      POST /api/index      ← Index docs (33 MDX files)       │
+│      POST /api/chat       ← SSE streaming response          │
+│      GET  /api/health     ← Health check                    │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+           ┌─────────────────┼─────────────────┐
+           ▼                 ▼                 ▼
+  ┌─────────────┐   ┌───────────────┐   ┌──────────────┐
+  │   Ollama    │   │    Qdrant     │   │  .mdx files  │
+  │ LLM + Emb   │   │  (Vector DB)  │   │ (33 files)   │
+  └─────────────┘   └───────────────┘   └──────────────┘
 ```
 
 ## Tech Stack
