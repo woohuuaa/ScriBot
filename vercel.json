@@ -1,12 +1,3 @@
-// {
-//   "projects": [
-//     {
-//       "path": "Docs",
-//       "settings": {
-//         "framework": "astro",
-//         "buildCommand": "npm run build",
-//         "outputDirectory": "dist"
-//       }
-//     }
-//   ]
-// }
+{
+  "framework": "astro"
+}
