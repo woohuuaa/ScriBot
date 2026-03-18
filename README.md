@@ -11,7 +11,7 @@ ScriBot is a side project that implements a full RAG (Retrieval-Augmented Genera
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 Vue.js Chat Widget (SSE)                    │
-│                     (Embedded in Docs)                      │
+│  (Embedded in KDAI - KamerDebat AI Documentation Website)   │
 └────────────────────────────┬────────────────────────────────┘
                              │ SSE Stream
                              ▼
