@@ -1,0 +1,158 @@
+---
+title: Quick Start Guide
+description: Get KDAI running with Docker Compose
+---
+
+This guide will help you get the KDAI system running on your local machine using Docker Compose.
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+- Docker
+- Docker Compose
+
+## Installation Steps
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/W-KDAI/kdai2.git
+cd kdai2
+```
+
+### 2. Set Up Environment Variables
+
+Navigate to the Docker Compose directory and create environment files:
+
+```bash
+cd KDAI-DockerCompose
+cp .env.example .env
+```
+
+Edit the `.env` file with your configuration:
+
+```bash
+# Database Configuration
+POSTGRES_DB=kdai
+POSTGRES_USER=kdai_user
+POSTGRES_PASSWORD=your_secure_password
+
+# MinIO Configuration
+MINIO_ROOT_USER=admin
+MINIO_ROOT_PASSWORD=your_secure_password
+
+# Backend Configuration
+APP_KEY=base64:your_generated_key
+APP_URL=http://localhost:8001
+STATIC_API_KEY=your_static_api_key
+
+
+# EXTERNAL LLM
+LLM_API_URL=https://your-llm-endpoint
+LLM_API_KEY=your_llm_api_key # put in Authorization : Bearer <key>
+LLM_MODEL_NAME=your_model_name # e.g. mistral-nemo:12b
+
+```
+
+### 3. Set Up Backend Environment
+
+```bash
+cd ../KDAI-backend
+cp .env.example .env
+```
+
+Update the backend `.env` file with database and storage credentials.
+
+### 4. Set Up Services Environment
+
+```bash
+cd ../KDAI-services
+cp .env.example .env
+```
+
+Configure service-specific settings in the `.env` file.
+
+### 5. Build and Run
+
+From the `KDAI-DockerCompose` directory:
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+This will start all services:
+
+- PostgreSQL database
+- MinIO object storage
+- Backend API
+- Frontend application
+- ATTS and QES services
+
+### 6. Access the Application
+
+Once all containers are running:
+
+- **Application (Frontend + API)**: http://localhost:8001
+- **MinIO Console**: http://localhost:9001
+
+**Note**: The backend's nginx serves both the frontend (at `/`) and API (at `/api/`) through
+port 8001.
+
+## Verify Installation
+
+Check that all services are running:
+
+```bash
+docker compose ps
+```
+
+All services should show as "Up" or "healthy".
+
+## Next Steps
+
+- [Configure Environment Variables](/installation/environment/) in detail
+- Learn about the [Architecture](/getting-started/architecture/)
+- Explore the [Backend API](/components/backend/)
+- Review [Security Best Practices](/deployment/security/)
+
+## Troubleshooting
+
+### Services Won't Start
+
+```bash
+# Check logs for specific service
+docker compose logs backend
+docker compose logs frontend
+docker compose logs atts
+
+# Restart services
+docker compose restart
+```
+
+### Database Connection Issues
+
+Ensure PostgreSQL is fully started before the backend:
+
+```bash
+docker compose up -d postgres
+sleep 10
+docker compose up -d backend
+```
+
+## Common Commands
+
+```bash
+# View logs
+docker compose logs -f
+
+# Stop all services
+docker compose down
+
+# Rebuild after code changes
+docker compose up --build
+
+# Reset everything (WARNING: deletes data)
+docker compose down -v
+```

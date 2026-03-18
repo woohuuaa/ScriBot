@@ -1,0 +1,569 @@
+---
+title: Development Workflow
+description: Essential development commands and workflows for KDAI
+---
+
+## Getting Started
+
+**Use Docker Compose for development:**
+
+```bash
+cd KDAI-DockerCompose
+cp .env.example .env
+docker compose up -d
+```
+
+**Access points:**
+
+- Application (Frontend + API): http://localhost:8001
+- MinIO Console: http://localhost:9001
+
+## Essential Commands
+
+### Backend (Laravel)
+
+```bash
+# In container
+docker compose exec backend bash
+
+# Common operations
+php artisan migrate
+php artisan db:seed
+php artisan queue:work
+php artisan tinker
+
+# Clear caches
+php artisan cache:clear
+php artisan config:clear
+php artisan route:clear
+```
+
+### Frontend (Vue)
+
+```bash
+# In container
+docker compose exec frontend bash
+
+# Install dependencies (if needed)
+npm install
+
+# Development server runs automatically
+```
+
+### Services (Python)
+
+```bash
+# Check service logs
+docker compose logs -f qes
+docker compose logs -f atts-csp
+docker compose logs -f atts-ts
+
+# Restart service
+docker compose restart qes
+```
+
+### Database
+
+```bash
+# Access PostgreSQL
+docker compose exec postgres psql -U kdai_user -d kdai
+
+# Reset database
+docker compose exec backend php artisan migrate:fresh --seed
+```
+
+## Debugging
+
+### View Logs
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+### Check Service Health
+
+```bash
+# All containers
+docker compose ps
+
+# Test API
+curl http://localhost:8001/api/health
+```
+
+### Database Issues
+
+```bash
+# Check database connection
+docker compose exec backend php artisan tinker
+>>> DB::connection()->getPdo()
+
+# View recent queries
+docker compose exec backend php artisan tinker
+>>> DB::enableQueryLog(); // run some code; dd(DB::getQueryLog());
+```
+
+## Code Changes
+
+### Backend Changes
+
+```bash
+# Restart PHP-FPM
+docker compose restart backend
+
+# Or reload with new code
+docker compose exec backend php artisan config:cache
+```
+
+### Frontend Changes
+
+```bash
+# Hot reload works automatically
+# If issues, restart container
+docker compose restart frontend
+```
+
+### Service Changes
+
+```bash
+# Rebuild and restart service
+docker compose up -d --build qes
+```
+
+## Testing
+
+### Backend Tests
+
+```bash
+docker compose exec backend ./vendor/bin/phpunit
+```
+
+### Frontend Tests
+
+```bash
+docker compose exec frontend npm run test
+```
+
+## Common Issues
+
+### Services Not Starting
+
+```bash
+# Check for port conflicts
+docker compose ps
+lsof -i :8000
+
+# View detailed logs
+docker compose logs backend
+```
+
+### Database Connection Failed
+
+```bash
+# Check PostgreSQL is running
+docker compose ps postgres
+
+# Reset database
+docker compose exec backend php artisan migrate:fresh
+```
+
+### Frontend Not Loading
+
+```bash
+# Check if built correctly
+docker compose exec frontend npm run build
+
+# Clear browser cache
+# Check network tab for API calls
+```
+
+## Development Tips
+
+- **Use the Docker environment** - it's configured correctly
+- **Check logs first** when something doesn't work
+- **Restart services** after config changes
+- **Use `docker compose exec`** to run commands in containers
+- **Database changes require migration** - don't modify schema directly
+
+## Debugging Techniques
+
+### Backend Debugging
+
+**Laravel Debugbar:**
+
+```bash
+composer require barryvdh/laravel-debugbar --dev
+```
+
+**Tinker for Interactive Debugging:**
+
+```bash
+php artisan tinker
+```
+
+**Log Debugging:**
+
+```php
+// In controller/service
+Log::info('Debug message', ['data' => $variable]);
+```
+
+**View Logs:**
+
+```bash
+tail -f storage/logs/laravel.log
+```
+
+### Frontend Debugging
+
+**Vue DevTools:**
+
+- Install browser extension
+- Debug reactive data, events, components
+
+**Console Logging:**
+
+```typescript
+console.log('Component mounted', this.debate);
+```
+
+**Network Debugging:**
+
+- Browser DevTools Network tab
+- Check API responses, WebSocket connections
+
+### Service Debugging
+
+**Python Service Logs:**
+
+```bash
+cd KDAI-services/QES
+python run.py  # Check console output
+```
+
+**Redis Queue Inspection:**
+
+```bash
+redis-cli
+> LLEN csp_queue
+> LRANGE csp_queue 0 -1
+```
+
+**MinIO Debugging:**
+
+- Access MinIO console at http://localhost:9001
+- Check bucket contents, file uploads
+
+## Development Commands
+
+### Laravel Commands
+
+**Clear Caches:**
+
+```bash
+php artisan cache:clear
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+```
+
+**Generate IDE Helper:**
+
+```bash
+php artisan ide-helper:generate
+php artisan ide-helper:models
+```
+
+**Queue Management:**
+
+```bash
+php artisan queue:work     # Process queues
+php artisan queue:failed   # List failed jobs
+php artisan queue:retry all # Retry failed jobs
+```
+
+### Frontend Commands
+
+**Type Checking:**
+
+```bash
+npm run lint
+```
+
+**Build for Production:**
+
+```bash
+npm run build
+```
+
+### Docker Development
+
+**Rebuild Single Service:**
+
+```bash
+docker compose up -d --build backend
+```
+
+**View Service Logs:**
+
+```bash
+docker compose logs -f backend
+```
+
+**Execute Commands in Container:**
+
+```bash
+docker compose exec backend php artisan migrate
+```
+
+## Code Quality Tools
+
+### Backend
+
+**Laravel Pint (Code Style):**
+
+```bash
+./vendor/bin/pint
+```
+
+**PHPStan (Static Analysis):**
+
+```bash
+composer require --dev phpstan/phpstan
+./vendor/bin/phpstan analyse
+```
+
+### Frontend
+
+**ESLint:**
+
+```bash
+npm run lint
+```
+
+**Vue TSC (Type Checking):**
+
+```bash
+npx vue-tsc --noEmit
+```
+
+## Git Workflow
+
+### Branch Strategy
+
+**Feature Branches:**
+
+```bash
+git checkout -b feature/add-debate-questions
+# Make changes
+git commit -m "Add debate questions functionality"
+git push origin feature/add-debate-questions
+```
+
+**Pull Request Process:**
+
+1. Create PR with description
+2. Run tests locally
+3. CI/CD checks pass
+4. Code review
+5. Merge to main
+
+### Commit Conventions
+
+**Format:**
+
+```
+type(scope): description
+
+[optional body]
+
+[optional footer]
+```
+
+**Types:**
+
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation
+- `style`: Code style
+- `refactor`: Code refactoring
+- `test`: Testing
+- `chore`: Maintenance
+
+**Examples:**
+
+```
+feat(debates): add question extraction endpoint
+fix(auth): resolve token refresh issue
+docs(api): update endpoint documentation
+```
+
+## Environment Management
+
+### Multiple Environments
+
+**Local Environment:**
+
+- Use `.env` for local config
+- Debug enabled, detailed logging
+
+**Development Environment:**
+
+- Docker-based, matches production
+- Debug disabled, production logging
+
+**Production Environment:**
+
+- Optimized settings
+- Security hardening
+- Monitoring enabled
+
+### Environment Switching
+
+**Laravel:**
+
+```bash
+# .env
+APP_ENV=production
+APP_DEBUG=false
+```
+
+**Vue:**
+
+```bash
+# .env.production
+VITE_API_BASE_URL=https://api.kdai.nl
+```
+
+## Performance Profiling
+
+### Backend Profiling
+
+**Laravel Telescope:**
+
+```bash
+composer require laravel/telescope
+php artisan telescope:install
+php artisan migrate
+```
+
+**Clockwork:**
+
+```bash
+composer require itsgoingd/clockwork
+# Access at /clockwork
+```
+
+### Frontend Profiling
+
+**Vue DevTools Performance Tab:**
+
+- Component render times
+- Memory usage
+
+**Lighthouse:**
+
+```bash
+npm install -g lighthouse
+lighthouse http://localhost:8001
+```
+
+## Troubleshooting Common Issues
+
+### Backend Issues
+
+**Class Not Found:**
+
+```bash
+composer dump-autoload
+```
+
+**Permission Issues:**
+
+```bash
+chmod -R 775 storage/
+chmod -R 775 bootstrap/cache/
+```
+
+**Database Connection:**
+
+```bash
+# Check PostgreSQL
+psql -h localhost -U your_user -d kdai_dev
+
+# Test Laravel connection
+php artisan tinker
+>>> DB::connection()->getPdo()
+```
+
+### Frontend Issues
+
+**Port Already in Use:**
+
+```bash
+lsof -ti:5173 | xargs kill -9
+```
+
+**CORS Issues:**
+
+- Check `config/cors.php`
+- Verify `APP_URL` in `.env`
+
+### Service Issues
+
+**Port Conflicts:**
+
+- Check service ports in docker-compose.yml
+- Ensure no other services running on ports
+
+**Dependency Issues:**
+
+```bash
+# Python
+pip install --upgrade pip
+pip install -r requirements.txt --force-reinstall
+```
+
+**Redis Connection:**
+
+```bash
+redis-cli ping
+# Should return PONG
+```
+
+## IDE Configuration
+
+### VS Code Extensions
+
+**Backend:**
+
+- PHP Intelephense
+- Laravel Extension Pack
+- PHPUnit Test Explorer
+
+**Frontend:**
+
+- Vue Language Features (Volar)
+- TypeScript Importer
+- Tailwind CSS IntelliSense
+
+### Settings
+
+**settings.json:**
+
+```json
+{
+  "php.validate.executablePath": "/usr/local/bin/php",
+  "emmet.includeLanguages": {
+    "vue": "html"
+  },
+  "vetur.validation.template": false,
+  "volar.tsPlugin": true
+}
+```
+
+This workflow ensures efficient development while maintaining code quality and system reliability.

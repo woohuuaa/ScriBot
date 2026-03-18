@@ -1,0 +1,716 @@
+---
+title: FR-011 - AI-Assisted Dossier
+description:
+  Use AI to assist in building, searching, and retrieving dossiers and preparation material for
+  debates
+---
+
+## Overview
+
+AI-Assisted Dossier leverages artificial intelligence to enhance dossier management through
+intelligent natural language search, automatic document summarization, question-answering over
+preparation materials, and contextual content recommendations, dramatically reducing information
+retrieval time during time-sensitive parliamentary sessions.
+
+## Actors
+
+- **Policy Officer** - Query dossiers using natural language to find specific briefing facts quickly
+  during debates
+- **Department Staff** - Use AI summarization to rapidly digest lengthy policy documents for
+  response preparation
+- **Information Manager** - Leverage automatic tagging to maintain consistent categorization across
+  ministry dossiers
+- **Department Coordinator** - Discover related content across multiple dossiers to ensure
+  comprehensive briefings for ministry responses
+
+## Use Cases
+
+### UC-11.1: Natural Language Dossier Search
+
+During live debate, department staff member types "renewable energy subsidies minister position
+2024" and immediately receives relevant ministry dossier sections, even though actual documents use
+different terminology like "sustainable power financial support."
+
+### UC-11.2: Rapid Document Comprehension
+
+Policy officer uploads 80-page environmental impact report to ministry dossier, requests AI summary,
+and within seconds receives concise 500-word overview highlighting key findings, recommendations,
+and action items.
+
+### UC-11.3: Evidence-Based Question Answering
+
+Department staff member asks "What was our department's stance on healthcare privatization last
+year?" and AI provides specific answer with citations to exact dossier sections and dates for
+verification.
+
+### UC-11.4: Cross-Dossier Discovery
+
+System automatically suggests three related dossiers from previous years when user opens current
+education budget dossier, surfacing relevant historical context and precedents without manual
+searching.
+
+## Scenarios
+
+### Scenario 1: Semantic Search During Active Debate
+
+**Preconditions:**
+
+- Fifty dossiers exist in education ministry with embeddings generated
+- User authenticated during live parliamentary session
+- Question asked about teacher salary negotiations directed at education ministry
+- Traditional keyword search would miss relevant content using different terminology
+
+**Steps:**
+
+1. Parliamentary question asked: "What progress on educator compensation discussions?"
+2. User opens search interface, types "teacher salary negotiations current status"
+3. System generates vector embedding for query via LLM provider
+4. System queries vector database for semantically similar content
+5. LLM provider re-ranks results for relevance
+6. Results displayed within 2 seconds showing three relevant sections
+7. Top result from dossier titled "HR Policy Updates" (doesn't contain exact keywords)
+8. User clicks result, sees highlighted section about "compensation framework discussions with
+   teaching staff"
+9. User finds answer: "Negotiations ongoing, proposal under minister review, expected resolution Q2
+   2024"
+10. Total time from query to answer: under 20 seconds
+
+**Postconditions:**
+
+- User found relevant information despite terminology mismatch
+- Traditional keyword search would have failed
+- Ministry can provide accurate, timely response
+- Search query logged for quality metrics
+
+### Scenario 2: Document Summarization Workflow
+
+**Preconditions:**
+
+- User has dossier editing permissions
+- 65-page PDF policy document uploaded to dossier
+- Document parsing libraries available
+- LLM provider API accessible
+
+**Steps:**
+
+1. User uploads "Climate_Policy_Framework_2024.pdf" to dossier
+2. System extracts plain text using document parser (15 seconds)
+3. User clicks "Generate Summary" button
+4. System sends document chunks to LLM provider with summarization prompt
+5. Loading indicator shows "Analyzing document..."
+6. After 8 seconds, 400-word summary appears
+7. Summary includes: policy objectives, key stakeholders, budget implications, timeline
+8. User reviews summary, confirms accuracy
+9. Summary cached for 7 days for other team members
+10. User adds summary to briefing notes section
+
+**Postconditions:**
+
+- Document summarized preserving critical information
+- Team saves hours of manual reading
+- Summary available for future reference
+- Cache reduces repeated processing costs
+
+### Scenario 3: Question Answering with Citations
+
+**Preconditions:**
+
+- Healthcare dossier contains 25 sections with generated embeddings
+- User needs specific answer about policy position
+- RAG (Retrieval-Augmented Generation) system operational
+
+**Steps:**
+
+1. User opens dossier Q&A interface
+2. Types question: "What is our position on private healthcare expansion?"
+3. System performs semantic search, retrieves 5 most relevant sections
+4. System constructs prompt with context and question
+5. Prompt includes instruction: "Answer only from provided context, cite sources"
+6. LLM provider generates response over 4 seconds
+7. Answer streams to UI in real-time: "The department supports limited private healthcare expansion
+   in specialized care areas, while maintaining public system primacy. Private sector partnership
+   focused on reducing wait times for elective procedures. (Source: Healthcare Policy Brief Section
+   3.2, updated March 2024)"
+8. User clicks source citation
+9. System navigates to exact referenced section
+10. User verifies answer against source material
+
+**Postconditions:**
+
+- User received grounded, verifiable answer
+- Source citation enables fact-checking
+- Answer based only on dossier content (no hallucinations)
+- Response time acceptable for time-sensitive use
+
+### Scenario 4: Automatic Tagging for New Dossier
+
+**Preconditions:**
+
+- User creating new dossier about infrastructure spending
+- Dossier contains description and three sections with content
+- Auto-tagging system configured
+
+**Steps:**
+
+1. User creates dossier titled "National Infrastructure Investment 2024"
+2. Adds description: "Comprehensive overview of road, rail, and bridge funding allocations"
+3. Adds sections with content about highways, public transit, structural repairs
+4. Clicks "Auto-Generate Tags" button
+5. System combines title, description, and section content
+6. Sends to LLM provider with structured prompt requesting JSON tag array
+7. LLM provider responds: `["infrastructure", "transport", "finance", "high-priority", "policy"]`
+8. System parses JSON, saves tags to database
+9. Tags displayed in dossier metadata
+10. User reviews tags, removes "high-priority", adds "multi-year"
+
+**Postconditions:**
+
+- Dossier automatically categorized
+- Tags enable better search and filtering
+- User can refine AI suggestions
+- Consistent categorization across dossiers
+
+## Business Value
+
+Transforms dossier management from time-consuming manual searching into rapid, intelligent
+information retrieval, enabling ministry staff to provide accurate, well-supported response
+briefings during parliamentary debates when every second counts, significantly improving response
+quality and effectiveness.
+
+## Priority
+
+Low (Could) - Valuable enhancement but not critical for MVP functionality
+
+## Implementation Status
+
+❌ **Not Implemented** - LLM provider infrastructure exists and operational, but dossier-specific AI
+features including semantic search, summarization, RAG, and auto-tagging not yet built. Vector
+database not configured.
+
+## Dependencies
+
+- [FR-010: Dossier Building](/design/features/fr-010-dossier-building) - Dossier data model,
+  storage, and management
+- [FR-008: File Management](/design/features/fr-008-file-management) - Document storage
+  infrastructure
+- LLM provider service (deployed and accessible)
+- Vector database for embeddings (requires PostgreSQL pgvector extension installation)
+- Document parsing libraries for PDF/Word/Excel text extraction (not yet installed)
+
+## Technical Overview
+
+The AI-assisted system combines vector embeddings for semantic similarity, retrieval-augmented
+generation for grounded question-answering, and large language models for summarization and tagging.
+Documents converted to embeddings stored in vector database enabling sub-second similarity searches.
+RAG approach ensures AI responses cite actual dossier content rather than generating unsupported
+claims.
+
+### Architecture Components
+
+- **Embedding Generation** - Convert text to 768-dimension vectors using LLM provider embedding
+  model
+- **Vector Database** - PostgreSQL with pgvector extension for similarity search over embeddings
+- **Document Parser** - Extract plain text from PDF, Word, Excel files for AI processing
+- **RAG Pipeline** - Retrieve relevant context, augment prompts, generate grounded answers
+- **Caching Layer** - Redis stores expensive AI responses to avoid regeneration
+
+### Key Design Principles
+
+- **Semantic Understanding** - Move beyond keyword matching to intent-based search
+- **Source Grounding** - All AI responses must cite specific dossier sections for verification
+- **Human Oversight** - AI suggestions reviewable and editable by users
+- **Privacy First** - All processing occurs on-premise using self-hosted LLM provider
+- **Performance Optimization** - Aggressive caching and asynchronous processing for responsiveness
+
+### Integration Points
+
+- **LLM Provider API** - Embeddings, chat completions, structured outputs for AI features
+- **pgvector Database** - Cosine similarity search over document embeddings
+- **MinIO Storage** - Source documents for text extraction and processing
+- **Queue System** - Background jobs for embedding generation on content changes
+- **Redis Cache** - Store AI responses to reduce computation costs
+
+### Missing Components
+
+PostgreSQL pgvector extension not enabled. Database table for embeddings not created. Document
+parsing libraries not installed (smalot/pdfparser, phpoffice/phpword). Backend AI service classes
+and controllers do not exist. Frontend UI components for AI features not built. Embedding generation
+pipeline not implemented. RAG question-answering system not developed.
+
+### Implementation References
+
+- LLM provider deployment: `KDAI-services/compose.yaml`
+- Future AI service location: `KDAI-backend/app/Services/DossierAIService.php` (not yet created)
+- Future frontend AI components: `KDAI-frontend/src/components/dossier/AI/` (not yet created)
+
+## Related Documentation
+
+- [FR-010: Dossier Building](/design/features/fr-010-dossier-building)
+- [FR-008: File Management](/design/features/fr-008-file-management)
+- [FR-003: Question Extraction](/design/features/fr-003-question-extraction)
+
+## Implementation Details
+
+### Architecture Overview
+
+```
+┌─────────────┐
+│   Frontend  │
+│   (Vue 3)   │
+└──────┬──────┘
+       │
+       │ HTTP/WebSocket
+       ▼
+┌─────────────────┐
+│  Laravel Backend│
+│   AI Controller │
+└────────┬────────┘
+         │
+         ├──────────────┬──────────────┬──────────────┐
+         ▼              ▼              ▼              ▼
+   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+   │  Ollama  │   │ pgvector │   │  MinIO   │   │  Redis   │
+   │   LLM    │   │ Embeddings│   │ Documents│   │  Cache   │
+   └──────────┘   └──────────┘   └──────────┘   └──────────┘
+```
+
+### AI Features
+
+#### 1. Semantic Search
+
+**Traditional Keyword Search:**
+
+```
+Query: "budget healthcare 2024"
+Results: Documents containing exact words "budget", "healthcare", "2024"
+```
+
+**Semantic Search:**
+
+```
+Query: "How much money is allocated for hospitals next year?"
+Results: Documents about healthcare budget planning, even if they use different terminology
+```
+
+**Proposed Implementation:**
+
+**Note**: This functionality does not currently exist in the codebase.
+
+| Component                              | Purpose                               | Key Operations                                                                                                                                                                                           |
+| -------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DossierAIService::semanticSearch()** | Natural language search over dossiers | 1. Convert user query to vector embedding via Ollama<br/>2. Query pgvector for similar document chunks<br/>3. Re-rank results using LLM for relevance<br/>4. Return top N results with similarity scores |
+| **DossierAIService::getEmbedding()**   | Generate vector embeddings for text   | Send text to Ollama's `nomic-embed-text` model, receive 768-dimension vector                                                                                                                             |
+
+**Required Dependencies:**
+
+- Ollama embedding model (nomic-embed-text)
+- pgvector PostgreSQL extension
+- HTTP client for Ollama API communication
+
+**Proposed Vector Database Table:**
+
+**Note**: This table does not currently exist. pgvector extension is not yet enabled.
+
+| Table                  | Purpose                                     | Key Fields                                                                                                                               |
+| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **dossier_embeddings** | Store vector embeddings for semantic search | id, dossier_id, section_id (optional), content (original text), embedding (768-dimension vector from nomic-embed-text model), created_at |
+
+**Requirements:**
+
+- PostgreSQL `pgvector` extension must be installed and enabled
+- Vector index (ivfflat) for fast cosine similarity search
+- Embeddings generated using Ollama's `nomic-embed-text` model (768 dimensions)
+
+#### 2. Document Summarization
+
+**Use Case:** Quickly understand a 50-page policy document
+
+**Proposed Implementation:**
+
+**Note**: This functionality does not currently exist in the codebase.
+
+| Component                                 | Purpose                                         | Key Operations                                                                                                                                                                                                 |
+| ----------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DossierAIService::summarizeDocument()** | Generate concise summaries of long documents    | 1. Extract text from PDF/Word/Excel via parser<br/>2. Send to Ollama LLM with summarization prompt<br/>3. Cache result for 7 days to avoid re-computation<br/>4. Return summary preserving key facts and dates |
+| **DocumentParserService::extractText()**  | Extract plain text from binary document formats | Parse PDF, DOCX, XLSX files and return plain text content                                                                                                                                                      |
+
+**API Endpoint (Proposed):**
+
+- `POST /api/dossiers/documents/{id}/summarize`
+- Query param: `max_length` (default: 500 words)
+- Response: `{ "summary": "...", "cached": true }`
+
+**Required Dependencies:**
+
+- Ollama LLM (llama3.1:8b or similar)
+- PDF parser library (e.g., smalot/pdfparser)
+- Word parser library (e.g., phpoffice/phpword)
+- Redis cache for storing summaries
+
+**Frontend Component (Proposed):**
+
+**Note**: This UI component does not currently exist.
+
+| Component                   | Purpose                                    | Key Features                                                                                                                                                                                                                              |
+| --------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DocumentSummaryCard.vue** | Display document with AI-generated summary | - Show document metadata (title, size, type)<br/>- "Summarize" button to trigger AI generation<br/>- Loading state while waiting for LLM response<br/>- Display cached summary if available<br/>- Error handling for failed summarization |
+| **dossierAIService.ts**     | Frontend service for AI features           | Handles API calls to `/api/dossiers/documents/{id}/summarize`                                                                                                                                                                             |
+
+#### 3. Question Answering (RAG)
+
+**Retrieval-Augmented Generation (RAG)** allows users to ask questions and get answers grounded in
+dossier content.
+
+**Use Case:**
+
+```
+User: "What was the minister's position on renewable energy subsidies?"
+AI: "According to the briefing note from March 2024, the minister supports
+     extending renewable energy subsidies until 2030, with a budget increase
+     of 15%. (Source: Dossier #123, Section 4)"
+```
+
+**Proposed Implementation:**
+
+**Note**: This RAG functionality does not currently exist in the codebase.
+
+| Component                              | Purpose                                      | Key Operations                                                                                                                                                                                                                                  |
+| -------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DossierAIService::answerQuestion()** | Answer questions using dossier content (RAG) | 1. Use semantic search to find 5 relevant sections<br/>2. Build prompt with context and question<br/>3. Send to Ollama LLM with grounding instructions<br/>4. Return answer with source citations<br/>5. Enforce "only from context" constraint |
+
+**RAG Prompt Structure:**
+
+- **System role**: Assistant for parliamentary debate preparation
+- **Constraint**: Answer ONLY from provided context
+- **Fallback**: "I don't have enough information" if answer not in context
+- **Citations**: Always reference which section the answer comes from
+
+**API Endpoint (Proposed):**
+
+- `POST /api/dossiers/{id}/ask`
+- Body: `{ "question": "What is the minister's position?" }`
+- Response: `{ "answer": "...", "sources": [...] }`
+
+**Streaming Response (Proposed):**
+
+**Note**: Streaming functionality does not currently exist.
+
+| Feature           | Purpose                                         | Implementation Approach                                                                                                                                                                               |
+| ----------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Streaming Q&A** | Show answer as it's being generated (better UX) | - Backend: Set Ollama `stream: true` flag, yield chunks via PHP generator<br/>- Frontend: Use Fetch API ReadableStream to consume chunks<br/>- Display: Append each chunk to answer text in real-time |
+
+**Benefits:**
+
+- User sees partial answer immediately (reduces perceived latency)
+- Can cancel long-running queries mid-stream
+- Better experience for complex questions with long answers
+
+#### 4. Automatic Tagging
+
+**Use Case:** Automatically categorize dossiers by topic, department, urgency
+
+**Proposed Implementation:**
+
+**Note**: Auto-tagging functionality does not currently exist in the codebase.
+
+| Component                              | Purpose                               | Key Operations                                                                                                                                                                     |
+| -------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DossierAIService::autoTagDossier()** | Generate tags automatically using LLM | 1. Combine dossier description and all section content<br/>2. Send to Ollama with structured prompt<br/>3. Request JSON-formatted tag array<br/>4. Parse and save tags to database |
+
+**Tag Categories (Proposed):**
+
+- **Topics**: healthcare, education, defense, finance, environment, infrastructure, social affairs,
+  justice
+- **Urgency**: urgent, high-priority, normal, low-priority
+- **Type**: policy, briefing, statistics, legal, correspondence, memo
+
+**LLM Output Format:**
+
+```json
+["healthcare", "high-priority", "policy", "finance"]
+```
+
+**Accuracy Target:** 85%+ agreement with human-assigned tags
+
+#### 5. Related Content Suggestions
+
+**Use Case:** "Users who viewed this dossier also found these helpful"
+
+**Proposed Implementation:**
+
+**Note**: Related content suggestions do not currently exist in the codebase.
+
+| Component                                  | Purpose                                         | Key Operations                                                                                                                                                                                         |
+| ------------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **DossierAIService::getRelatedDossiers()** | Find similar dossiers using semantic similarity | 1. Generate embedding for current dossier description<br/>2. Query pgvector for dossiers with similar embeddings<br/>3. Exclude current dossier from results<br/>4. Return top 5 most similar dossiers |
+
+**Similarity Calculation:**
+
+- Uses cosine distance between vector embeddings
+- Threshold: > 0.7 similarity score (configurable)
+- Results sorted by descending similarity
+
+**UI Display (Proposed):**
+
+- "Related Dossiers" sidebar widget
+- Shows title, topic tags, and similarity percentage
+- Click to navigate to related dossier
+
+### Document Text Extraction
+
+**Proposed Implementation:**
+
+**Note**: Document parsing service does not currently exist in the codebase.
+
+| Component                                | Purpose                                       | Supported Formats                     |
+| ---------------------------------------- | --------------------------------------------- | ------------------------------------- |
+| **DocumentParserService::extractText()** | Extract plain text from binary document files | PDF, DOCX, TXT, (future: XLSX, PPTX)  |
+| **extractFromPDF()**                     | Parse PDF files                               | Uses library like `smalot/pdfparser`  |
+| **extractFromWord()**                    | Parse Word documents                          | Uses library like `phpoffice/phpword` |
+
+**Required Libraries (Not Installed):**
+
+- `smalot/pdfparser` - PDF text extraction
+- `phpoffice/phpword` - Word document parsing
+- `phpoffice/phpspreadsheet` - Excel parsing (future)
+
+**Error Handling:**
+
+- Unsupported file types throw exception
+- Corrupted/password-protected files return error
+- Large files (>50MB) require chunked processing
+
+### Embedding Generation Pipeline
+
+**Proposed Implementation:**
+
+**Note**: Embedding generation pipeline does not currently exist in the codebase.
+
+| Component                                       | Purpose                                             | Trigger                                            |
+| ----------------------------------------------- | --------------------------------------------------- | -------------------------------------------------- |
+| **GenerateDossierEmbeddings** (Artisan command) | Batch-generate embeddings for all existing dossiers | Manual: `php artisan dossiers:generate-embeddings` |
+| **GenerateSectionEmbeddingJob** (Queue job)     | Generate embedding for single dossier section       | Automatic: when section is created or updated      |
+| **DossierSectionObserver**                      | Listen for section changes and queue embedding job  | Laravel Eloquent observer                          |
+
+**Process Flow:**
+
+1. **Batch Processing** (Initial Setup):
+   - Iterate through all dossiers and sections
+   - Generate 768-dimension embedding via Ollama
+   - Store in `dossier_embeddings` table
+   - Progress bar for user feedback
+
+2. **Real-time Processing** (Ongoing):
+   - Section created/updated → dispatch background job
+   - Job calls Ollama API to generate embedding
+   - Save/update embedding in vector database
+   - Enable immediate semantic search
+
+**Performance Considerations:**
+
+- Batch process: ~1 second per section (parallelize with queues)
+- Real-time: < 2 seconds for single embedding
+- Queue system prevents blocking user requests
+
+## What's Implemented
+
+✅ **LLM Infrastructure**
+
+- Ollama deployed and accessible (http://ollama:11434)
+- Models available: llama3.1:8b, nomic-embed-text
+
+## What's Missing
+
+❌ **Vector Database**
+
+- pgvector extension not enabled
+- No embeddings table or index
+
+❌ **Document Parsing**
+
+- No PDF/Word text extraction library
+- No document preprocessing pipeline
+
+❌ **AI Features**
+
+- Semantic search not implemented
+- Summarization endpoint doesn't exist
+- Question answering (RAG) not built
+- Auto-tagging not implemented
+
+❌ **Frontend Integration**
+
+- No UI for AI-powered search
+- No chat interface for Q&A
+- No summary display components
+
+## Integration Points
+
+- **Ollama Service**: LLM inference (already deployed)
+- **PostgreSQL + pgvector**: Vector storage for embeddings
+- **MinIO**: Source documents for text extraction
+- **Redis**: Cache for AI responses (expensive to regenerate)
+- **Queue System**: Background jobs for embedding generation
+
+## Performance Requirements
+
+- **Embedding Generation**: < 1 second per section
+- **Semantic Search**: < 2 seconds for 10,000 dossiers
+- **Question Answering**: < 5 seconds with streaming
+- **Summarization**: < 10 seconds for 20-page document
+- **Concurrent Requests**: Support 10+ simultaneous AI queries
+
+## Security Considerations
+
+- **Data Privacy**: Dossiers may contain sensitive government information
+- **Access Control**: AI features respect user permissions
+- **Audit Logging**: Track all AI queries and results
+- **Rate Limiting**: Prevent abuse (expensive AI operations)
+- **Data Leakage**: Ensure AI doesn't expose restricted content
+
+## Cost Considerations
+
+**Self-hosted Ollama (Current):**
+
+- 💰 **Infrastructure Cost**: ~$500/month (GPU server)
+- ⚡ **Latency**: 2-5 seconds per query
+- 📊 **Scalability**: Limited by hardware
+- 🔒 **Privacy**: Complete data control
+
+**Cloud LLM (Alternative):**
+
+- 💰 **Cost**: ~$0.01 per query (OpenAI GPT-4)
+- ⚡ **Latency**: 1-3 seconds per query
+- 📊 **Scalability**: Unlimited
+- 🔒 **Privacy**: Data sent to third party
+
+## Known Limitations
+
+### 1. Context Window Size
+
+**Issue:** LLMs have limited context (8K-128K tokens)
+
+**Impact:** Can't process entire dossiers in one go
+
+**Workaround:** Chunking and retrieval (RAG approach)
+
+### 2. Hallucinations
+
+**Issue:** LLMs sometimes generate plausible but false information
+
+**Mitigation:**
+
+- Always require citation of sources
+- Implement confidence scores
+- Human review for critical content
+
+### 3. Language Support
+
+**Issue:** Ollama models may not be optimized for Dutch
+
+**Workaround:**
+
+- Use multilingual models
+- Fine-tune on Dutch government documents (future)
+
+### 4. Cold Start Time
+
+**Issue:** First Ollama request can take 10+ seconds (model loading)
+
+**Mitigation:** Keep models warm with periodic health checks
+
+## Future Enhancements
+
+### Phase 1: Basic AI Search (MVP)
+
+- Enable pgvector extension
+- Implement embedding generation pipeline
+- Build semantic search endpoint
+- Simple search UI in frontend
+
+### Phase 2: Document Intelligence
+
+- PDF/Word text extraction
+- Automatic summarization
+- Auto-tagging of new dossiers
+- Related content suggestions
+
+### Phase 3: Conversational Interface
+
+- Chat-based Q&A over dossiers
+- Streaming responses for better UX
+- Conversation history and context
+- Multi-turn dialogue support
+
+### Phase 4: Advanced Features
+
+- Fine-tuned model on Dutch parliamentary language
+- Multi-document reasoning
+- Automatic fact-checking against official sources
+- Proactive suggestions ("You might want to review...")
+
+### Phase 5: Custom Models
+
+- Train domain-specific embedding model
+- Fine-tune LLM on government documents
+- On-premise GPU cluster for faster inference
+- Real-time model updates as new debates occur
+
+## Testing Considerations
+
+### Test Scenarios
+
+1. **Semantic Search Accuracy**: Measure precision/recall against human-labeled queries
+2. **Summarization Quality**: Compare AI summaries to human-written abstracts
+3. **Question Answering**: Verify answers are grounded in source documents
+4. **Auto-tagging**: Measure agreement with human-assigned tags
+5. **Load Testing**: Concurrent AI requests don't degrade performance
+
+### Evaluation Metrics
+
+- **Search Relevance**: NDCG@10 (Normalized Discounted Cumulative Gain)
+- **Summarization**: ROUGE score vs human summaries
+- **QA Accuracy**: Exact match and F1 score
+- **Tagging**: Precision, recall, F1 for each tag category
+- **Latency**: p50, p95, p99 response times
+
+### Quality Assurance
+
+**Proposed Evaluation Approach:**
+
+**Note**: AI evaluation scripts do not currently exist.
+
+| Test Type                    | Metric                     | Target                  | Method                                             |
+| ---------------------------- | -------------------------- | ----------------------- | -------------------------------------------------- |
+| **Semantic Search Accuracy** | NDCG@10, Precision, Recall | 90%+ relevance          | Human-labeled test queries vs. system results      |
+| **Summarization Quality**    | ROUGE score                | 0.7+ vs human summaries | Compare AI summaries to human-written abstracts    |
+| **Question Answering**       | Exact Match, F1            | 85%+ accuracy           | Verify answers match ground truth and cite sources |
+| **Auto-tagging Accuracy**    | Precision, Recall, F1      | 85%+ agreement          | Compare AI tags to human-assigned tags             |
+| **Latency**                  | p50, p95, p99              | p95 < 5s                | Monitor response times under load                  |
+
+**Test Dataset Requirements:**
+
+- 100+ human-labeled search queries with expected results
+- 50+ documents with human-written summaries
+- 100+ Q&A pairs with ground truth answers
+- 200+ dossiers with human-assigned tags
+
+**Continuous Monitoring:**
+
+- Log all AI requests/responses for quality review
+- User feedback ("Was this helpful?") for each AI result
+- A/B testing for prompt improvements
+
+## Related Requirements
+
+- [FR-010: Dossier Building](/design/features/fr-010-dossier-building) - Dossier data source
+- [FR-008: File Management](/design/features/fr-008-file-management) - Document storage
+- [FR-003: Question Extraction](/design/features/fr-003-question-extraction) - Similar NLP tasks
+- [FR-006: Debate Organization](/design/features/fr-006-debate-organization) - Context for search
+
+## References
+
+- **Ollama Documentation**: https://github.com/ollama/ollama
+- **pgvector**: https://github.com/pgvector/pgvector
+- **RAG Tutorial**: https://www.pinecone.io/learn/retrieval-augmented-generation/
+- **Nomic Embed**: https://ollama.com/library/nomic-embed-text

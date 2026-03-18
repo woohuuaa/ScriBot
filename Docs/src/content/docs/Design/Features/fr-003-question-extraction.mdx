@@ -1,0 +1,257 @@
+---
+title: FR-003 - Question Extraction
+description: Automatically identify and extract parliamentary questions from transcript data
+---
+
+## Overview
+
+Question Extraction automatically identifies and extracts parliamentary questions from live
+transcript data using AI-powered natural language processing, enabling tracking of questions asked
+during debates and facilitating parliamentary oversight and accountability.
+
+## Actors
+
+- **Department Staff**: Monitors extracted questions to identify those relevant to their ministry
+- **Department Coordinator**: Reviews and validates extracted questions requiring ministry response
+- **Policy Officer**: Tracks questions by policy area to prepare ministry briefings
+- **Question Editor**: Reviews and refines extracted questions for accuracy and completeness
+- **AI Service**: Natural language processing system identifying questions
+- **System Administrator**: Configures question extraction rules and thresholds
+
+## Use Cases
+
+### UC-001: Extract Questions from Live Debate
+
+**Actor**: Department Staff  
+**Description**: Automatically identify and extract questions as they are spoken during a live
+parliamentary debate, capturing question text, speaker, timestamp, and context for immediate
+tracking and ministry response preparation.
+
+### UC-002: Categorize Questions by Ministry and Policy Area
+
+**Actor**: Policy Officer  
+**Description**: Classify extracted questions by policy area, question type (direct, rhetorical,
+procedural), and target ministry, enabling departments to identify which questions require their
+ministry's response.
+
+### UC-003: Monitor Questions for Specific Ministry
+
+**Actor**: Department Staff  
+**Description**: Track all questions directed to a specific ministry in real-time, enabling
+department staff to prepare responses and gather relevant information during ongoing debates.
+
+### UC-004: Review and Refine Extracted Questions
+
+**Actor**: Question Editor  
+**Description**: Manually review AI-extracted questions, correcting any misidentifications, adding
+context, and ensuring accurate attribution before questions are used for ministry response
+preparation.
+
+## Scenarios
+
+### Scenario 1: Extracting Questions During Question Period
+
+**Preconditions**:
+
+- Live transcription is active and producing text segments
+- AI question extraction service is running
+- Question database is available for storage
+- Multiple parliament members are questioning ministers during debate
+
+**Steps**:
+
+1. Parliament member begins speaking during debate
+2. Transcription service produces text: "Minister, waarom heeft uw departement..."
+3. AI service analyzes text segment in real-time
+4. System detects question pattern (question word "waarom", direct address)
+5. System extracts complete question text including context
+6. Speaker identification links question to specific parliament member
+7. Question is classified as "Policy Question" directed to minister
+8. Extracted question is stored with timestamp and metadata
+9. WebSocket event notifies all connected clients of new question
+10. Department staff sees question appear in monitoring interface
+11. Department coordinator receives notification of question relevant to their ministry
+
+**Postconditions**:
+
+- Question is stored with full metadata and context
+- All relevant stakeholders are notified
+- Question is available for tracking and response preparation
+- Audit trail records question extraction and attribution
+
+### Scenario 2: Handling Compound and Follow-up Questions
+
+**Preconditions**:
+
+- Initial question has been extracted and stored
+- Same speaker continues with follow-up questions
+- AI service maintains context across transcript segments
+- Parliamentary rules allow multiple related questions
+
+**Steps**:
+
+1. Member asks initial question: "What is the government's position on climate policy?"
+2. First question is extracted and stored
+3. Member continues: "And specifically, what funding is allocated?"
+4. AI service recognizes this as follow-up to previous question
+5. System links second question to first question as related
+6. Both questions are associated with same topic area
+7. Context from first question enriches second question metadata
+8. Department coordinator reviews question sequence
+9. Coordinator approves grouping of related questions
+10. Both questions appear in ministry briefing as related set
+
+**Postconditions**:
+
+- Multiple related questions are properly linked
+- Context relationship is preserved
+- Ministry receives complete picture of member's inquiry
+- Question tracking system reflects question sequence
+
+### Scenario 3: Correcting Misidentified Rhetorical Question
+
+**Preconditions**:
+
+- AI extraction is processing debate transcript
+- Speaker makes rhetorical statement phrased as question
+- Automatic extraction mistakenly identifies it as actionable question
+- Question editor is monitoring extraction quality
+
+**Steps**:
+
+1. Speaker states: "Who among us can deny the importance of education?"
+2. AI service detects question pattern and extracts statement
+3. Question is classified as "Direct Question" requiring answer
+4. Extracted question appears in editor's review interface
+5. Editor identifies this as rhetorical question, not actionable
+6. Editor marks question as "Rhetorical - No Response Required"
+7. System updates question classification and metadata
+8. Department staff are notified of updated classification
+9. Question is removed from response tracking list
+10. System learns from editor's correction for future improvement
+
+**Postconditions**:
+
+- Question is correctly classified as rhetorical
+- No response is expected or tracked
+- AI feedback loop receives training data
+- Parliamentary record reflects accurate classification
+
+## Business Value
+
+### Primary Benefits
+
+- **Accountability**: Ensures all parliamentary questions are tracked and recorded
+- **Efficiency**: Eliminates manual question logging and tracking
+- **Responsiveness**: Enables immediate notification of questions to relevant parties
+- **Analysis**: Supports research on question patterns, topics, and accountability
+- **Transparency**: Creates comprehensive record of questions asked in parliament
+
+### Impact
+
+- Reduces question tracking time from manual post-session review to real-time
+- Ensures no questions are missed or lost during fast-paced debates
+- Enables proactive response preparation by ministers' offices
+- Supports parliamentary oversight and democratic accountability
+
+## Priority
+
+**MoSCoW Classification**: **Must Have**
+
+Core value proposition of KDAI system. Question extraction is the primary feature that distinguishes
+the system and supports parliamentary oversight functions.
+
+## Implementation Status
+
+**Status**: Implemented  
+**Version**: 1.0  
+**Last Updated**: 2024-Q4
+
+### Key Milestones
+
+- ✅ AI-powered question detection in Dutch
+- ✅ Real-time extraction from live transcripts
+- ✅ WebSocket-based real-time synchronization
+- ✅ TanStack DB collection for frontend state management
+- ✅ Manual review and correction interface
+- ✅ Question classification and categorization
+
+## Dependencies
+
+### Upstream Dependencies
+
+- [FR-002: Live Transcription](./fr-002-live-transcription) - Provides text for analysis
+
+### Downstream Dependencies
+
+- [FR-007: Real-time Notifications](./fr-007-real-time-notifications) - Notifies stakeholders of new
+  questions
+- [FR-009: Real-time Multi-User Working](./fr-009-realtime-multi-user-working) - Synchronizes
+  question edits
+- [FR-010: Dossier Building](./fr-010-dossier-building) - Includes questions in dossiers
+
+### External Dependencies
+
+- AI/LLM service for natural language processing
+- Dutch language models
+- WebSocket infrastructure (Laravel Reverb/Echo)
+- Real-time database synchronization
+
+## Technical Overview
+
+### High-Level Architecture
+
+The question extraction system combines AI-powered analysis with manual review workflows:
+
+**AI Extraction Pipeline**: Analyzes incoming transcript segments using natural language processing
+to identify question patterns. Supports Dutch linguistic patterns including question words (wat,
+hoe, waarom, wanneer), syntactic structures, and contextual clues. Assigns confidence scores to each
+extracted question.
+
+**Real-time Synchronization**: Uses WebSocket events (Laravel Reverb/Echo) to push newly extracted
+questions to all connected clients immediately. Frontend uses TanStack DB collections for reactive
+state management with optimistic updates and automatic conflict resolution.
+
+**Question Classification**: Categorizes questions by type (direct, rhetorical, procedural, policy,
+clarification), topic area, and target ministry. Links related questions and maintains context
+across question sequences.
+
+**Manual Review Interface**: Provides question editors with tools to review, edit, approve, or
+reject AI extractions. Corrections feed back into AI training pipeline for continuous improvement.
+
+**Storage and Querying**: Questions stored with comprehensive metadata including speaker, timestamp,
+context, confidence scores, classification, and relationships. Supports complex queries for research
+and analysis.
+
+### Data Flow
+
+```
+Transcript Segment → AI Analysis → Question Detected → Backend Event
+    → WebSocket Broadcast → Frontend Collection Update → UI Refresh
+
+User Edit → Optimistic UI Update → API Call → Backend Validation
+    → Database Update → WebSocket Broadcast → Other Clients Sync
+```
+
+### Key Design Principles
+
+- **AI + Human**: Combines automated extraction with human oversight
+- **Real-time First**: Questions available immediately as they're spoken
+- **Collaborative**: Multi-user editing with conflict resolution
+- **Context-Aware**: Preserves question context and relationships
+- **Feedback Loop**: Manual corrections improve AI performance
+
+## Related Documentation
+
+- **Backend Controllers**: `/KDAI-backend/app/Http/Controllers/DebateQuestionController.php`
+- **Backend Models**: `/KDAI-backend/app/Models/DebateQuestion.php`
+- **Backend Events**: `/KDAI-backend/app/Events/DebateQuestionAddedEvent.php`
+- **Frontend Collection**: `/KDAI-frontend/src/db/schema.ts` (debateQuestionsCollection)
+- **Frontend Composables**: `/KDAI-frontend/src/composables/useDebateQuestions.ts`
+- **WebSocket Sync**: `/KDAI-frontend/src/composables/useDebateQuestionsSync.ts`
+- **AI Service Integration**: Backend AI service connectors
+
+---
+
+**Document Version**: 2.0  
+**Last Reviewed**: 2025-11-11

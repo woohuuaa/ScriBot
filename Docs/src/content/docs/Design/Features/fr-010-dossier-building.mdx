@@ -1,0 +1,210 @@
+---
+title: FR-010 - Dossier Building
+description: Allow authorized users to add dossiers and preparation material for debates
+---
+
+## Overview
+
+Dossier Building enables department users to create and organize comprehensive preparation materials
+for parliamentary debates, providing structured access to background documents, policy briefs, and
+reference materials that support informed responses during live sessions.
+
+## Actors
+
+- **Policy Officer** - Create and maintain dossiers for specific policy areas, upload briefing
+  documents and background materials
+- **Department Coordinator** - Organize ministry dossiers for upcoming debates, ensure completeness
+  and accuracy of response materials
+- **Department Staff** - Access prepared dossiers during debates for quick reference when questions
+  arise
+- **Information Manager** - Establish dossier structure standards, manage access permissions across
+  ministry departments
+
+## Use Cases
+
+### UC-10.1: Pre-Debate Preparation
+
+Policy officer creates comprehensive dossier for upcoming healthcare debate, organizing briefing
+notes, budget documents, policy papers, and recent correspondence into logical sections accessible
+during the live session.
+
+### UC-10.2: Quick Reference During Debate
+
+During active debate, department staff member quickly accesses relevant dossier section to verify
+specific statistics mentioned in parliamentary question directed at their ministry, finding needed
+information within seconds.
+
+### UC-10.3: Collaborative Dossier Building
+
+Department team collaboratively builds dossier over several days, with multiple policy officers
+uploading documents, organizing sections, and refining content structure until comprehensive
+response package ready for debate.
+
+### UC-10.4: Historical Reference Access
+
+Policy officer links current debate dossier to archived dossiers from previous parliamentary
+sessions on the same policy topic, providing historical context and continuity for ministry response
+positions.
+
+## Scenarios
+
+### Scenario 1: Creating Multi-Section Dossier
+
+**Preconditions:**
+
+- User authenticated with policy officer role
+- Upcoming debate scheduled on education budget
+- Ten relevant documents identified and ready for upload
+
+**Steps:**
+
+1. User navigates to dossiers page, clicks "Create New Dossier"
+2. Enters dossier title "Education Budget 2024 Debate Preparation"
+3. Selects department "Education and Science"
+4. Optionally links to scheduled debate in system
+5. Creates section hierarchy: "Budget Overview", "Historical Data", "Policy Positions", "Q&A
+   Briefing"
+6. Uploads budget summary PDF to "Budget Overview" section
+7. Adds rich text briefing note with key talking points
+8. Uploads three historical comparison spreadsheets to "Historical Data"
+9. Tags dossier with "education", "budget", "2024"
+10. Sets status to "Draft" for team review
+11. Saves dossier
+
+**Postconditions:**
+
+- Dossier created with unique ID
+- All documents stored in object storage
+- Metadata indexed for search
+- Team members can access for review
+- Audit log records creation event
+
+### Scenario 2: Accessing Dossier During Live Debate
+
+**Preconditions:**
+
+- Parliamentary question asked about ministry's education funding allocation
+- Debate currently in progress
+- Comprehensive dossier prepared and accessible
+- Department staff member monitoring the debate needs to verify specific funding figure
+
+**Steps:**
+
+1. Parliamentary question asked: "What is allocated for teacher training?"
+2. Department staff member opens debate monitoring interface
+3. Clicks "View Dossier" button in sidebar
+4. Dossier opens showing section navigation
+5. Clicks "Budget Overview" section
+6. Scans briefing note for teacher training line item
+7. Finds figure: "€12.5M allocated for teacher professional development"
+8. Relays accurate information to ministry representative within 15 seconds
+
+**Postconditions:**
+
+- Accurate information retrieved promptly from dossier
+- Ministry representative receives correct briefing figure
+- No need to search through multiple unorganized files during time-critical moment
+
+### Scenario 3: Version Control Conflict
+
+**Preconditions:**
+
+- Dossier exists with five sections and twelve documents
+- Two users have edit permissions
+- Both users working on same dossier simultaneously
+
+**Steps:**
+
+1. User A opens dossier, edits briefing note in "Policy Positions"
+2. User B simultaneously opens same dossier, edits same briefing note
+3. User A saves changes after 5 minutes
+4. User B saves changes 30 seconds later
+5. System accepts User B's save (last-write-wins)
+6. User A's changes overwritten without warning
+7. User A notices discrepancy later, contacts User B
+8. Manual resolution required by comparing audit log
+
+**Postconditions:**
+
+- User B's version persisted
+- User A's changes lost
+- No built-in conflict resolution performed
+- Highlights need for FR-009 presence awareness
+
+## Business Value
+
+Reduces preparation time and improves response quality during parliamentary debates by centralizing
+all ministry briefing materials in accessible, well-organized packages, eliminating frantic searches
+through email attachments and file shares when questions directed at the ministry arise during
+time-critical debate moments.
+
+## Priority
+
+Medium (Could)
+
+## Implementation Status
+
+🔄 **Partial** - File upload infrastructure and object storage (MinIO) operational, but dedicated
+dossier management UI, organizational features, and search capabilities not yet implemented.
+
+## Dependencies
+
+- [FR-008: File Management](/design/features/fr-008-file-management) - Object storage for document
+  attachments
+- [FR-005: User Management](/design/features/fr-005-user-management) - Role-based access control
+- [FR-006: Debate Organization](/design/features/fr-006-debate-organization) - Linking dossiers to
+  debates
+- [FR-009: Realtime Multi-User Working](/design/features/fr-009-realtime-multi-user-working) -
+  Collaborative editing (future)
+- [FR-011: AI-Assisted Dossier](/design/features/fr-011-ai-assisted-dossier) - Intelligent search
+  and suggestions (future)
+
+## Technical Overview
+
+The dossier system uses hierarchical data model with dossiers containing sections (supporting
+nesting) and documents. Files stored in object storage with metadata in relational database.
+Full-text search capabilities will enable quick discovery across all dossier content.
+
+### Proposed Data Model
+
+**Core Entities:**
+
+- **Dossier** - Top-level container with title, description, department association, optional debate
+  linkage, status workflow
+- **DossierSection** - Hierarchical content organization with parent-child relationships, rich text
+  content, ordering
+- **DossierDocument** - File attachments with metadata, storage path references, upload tracking
+- **DossierVersion** - Change history capturing edits, document additions/removals, user attribution
+
+### Key Design Principles
+
+- **Hierarchical Organization** - Nested sections allow flexible information architecture matching
+  team mental models
+- **Rich Metadata** - Tags, categories, debate linkages enable multiple discovery paths
+- **Department Isolation** - Access control ensures sensitive information stays within appropriate
+  boundaries
+- **Audit Trail** - Complete versioning provides accountability and rollback capability
+- **Flexible Workflow** - Draft/Review/Approved status supports quality control processes
+
+### Integration Architecture
+
+- **File Storage** - MinIO object storage for document persistence (already deployed)
+- **Database** - PostgreSQL for dossier metadata, relationships, search indexes (tables not yet
+  created)
+- **Search** - Full-text search on content using PostgreSQL capabilities (future: dedicated search
+  engine)
+- **Real-time Updates** - WebSocket broadcasts when dossiers modified (integrates with FR-007)
+
+### Missing Components
+
+Database tables for dossiers, sections, documents, versions, and tags not yet implemented. Frontend
+UI components for dossier creation, editing, and viewing do not exist. Search functionality not
+built. Integration with debate interface incomplete.
+
+## Related Documentation
+
+- [FR-005: User Management](/design/features/fr-005-user-management)
+- [FR-006: Debate Organization](/design/features/fr-006-debate-organization)
+- [FR-008: File Management](/design/features/fr-008-file-management)
+- [FR-009: Realtime Multi-User Working](/design/features/fr-009-realtime-multi-user-working)
+- [FR-011: AI-Assisted Dossier](/design/features/fr-011-ai-assisted-dossier)

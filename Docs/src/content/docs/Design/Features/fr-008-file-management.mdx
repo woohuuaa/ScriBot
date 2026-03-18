@@ -1,0 +1,258 @@
+---
+title: FR-008 - File Management
+description: Support file upload, storage, and management for debate-related documents
+---
+
+## Overview
+
+File Management provides secure file upload, storage, and management capabilities for debate-related
+documents, offering centralized document management for parliamentary materials including
+legislation, briefing notes, research documents, and supporting materials.
+
+## Actors
+
+- **Information Manager**: Uploads official documents and legislation related to debates
+- **Policy Officer**: Attaches policy analysis documents to debates
+- **Department Staff**: Uploads briefing notes and response materials
+- **System Administrator**: Manages storage quotas and file policies
+- **Department Coordinator**: Downloads and manages debate-related documents for ministry use
+
+## Use Cases
+
+### UC-001: Upload Supporting Documents to Debate
+
+**Actor**: Information Manager  
+**Description**: Upload multiple documents (legislation drafts, previous debates, reference
+materials) and associate them with specific debate records for easy access by ministry staff
+preparing responses.
+
+### UC-002: Manage Document Versions
+
+**Actor**: Department Staff  
+**Description**: Upload updated versions of briefing documents as debate develops, maintaining
+version history and enabling rollback to previous versions if needed.
+
+### UC-003: Secure Document Sharing with Access Control
+
+**Actor**: System Administrator  
+**Description**: Configure role-based access permissions for sensitive documents, ensuring only
+authorized ministry staff can view, download, or modify specific materials.
+
+### UC-004: Search and Retrieve Documents for Briefings
+
+**Actor**: Policy Officer  
+**Description**: Search across all uploaded documents by filename, content, metadata, or associated
+debate, quickly locating relevant materials for ministry response preparation.
+
+## Scenarios
+
+### Scenario 1: Uploading Legislative Documents for Debate
+
+**Preconditions**:
+
+- New debate has been scheduled for legislative review
+- Information manager has digital copies of relevant legislation
+- File storage system has available capacity
+- User has upload permissions for the debate
+
+**Steps**:
+
+1. Information Manager opens debate details page
+2. Manager navigates to "Attached Documents" section
+3. Manager clicks "Upload Documents" button
+4. System displays file upload interface with drag-drop zone
+5. Manager drags PDF files of proposed legislation
+6. Manager drags Word document with legislative notes
+7. System begins uploading files with progress indicators
+8. System performs virus scanning on uploaded files
+9. System validates file types are allowed
+10. System generates preview thumbnails for documents
+11. Manager adds metadata: "Proposed Climate Act 2025 - Draft 3"
+12. Manager sets access level: "All Department Staff"
+13. System associates files with debate record
+14. Files appear in debate document list
+15. All users with debate access can now view and download documents
+
+**Postconditions**:
+
+- Documents are securely stored and associated with debate
+- Documents are accessible to authorized ministry staff
+- Virus scanning completed with no threats detected
+- Audit log records file upload activity
+
+### Scenario 2: Managing Ministry Briefing Note Versions During Debate
+
+**Preconditions**:
+
+- Ongoing debate requires ministry briefing notes
+- Initial briefing version was uploaded yesterday
+- New information requires briefing update
+- Version control is enabled for the document
+
+**Steps**:
+
+1. Department staff member opens debate documents
+2. Staff locates existing briefing note: "Finance Ministry Brief v1.0"
+3. Staff downloads current version for review
+4. Staff makes updates based on new information
+5. Staff returns to document management interface
+6. Staff clicks "Upload New Version" on existing document
+7. System prompts for updated file selection
+8. Staff selects revised briefing note file
+9. System uploads new version as "v2.0"
+10. System maintains link to previous v1.0
+11. Staff adds version notes: "Updated with Q3 budget figures"
+12. System displays version history with both versions
+13. Staff sets v2.0 as current active version
+14. Department coordinator downloads v2.0 for ministry briefing
+15. If needed, staff can still access v1.0 from version history
+
+**Postconditions**:
+
+- New version is stored and linked to debate
+- Version history is complete and accessible
+- Previous version remains available for reference
+- Ministry has most current briefing materials
+
+### Scenario 3: Enforcing Access Control on Sensitive Documents
+
+**Preconditions**:
+
+- Debate involves sensitive pre-decision policy materials
+- Documents must be restricted to specific roles
+- Role-based access control is configured
+- Audit logging is enabled for sensitive documents
+
+**Steps**:
+
+1. System Administrator reviews debate file permissions
+2. Administrator identifies sensitive policy draft document
+3. Administrator clicks "Edit Permissions" on document
+4. System displays current access: "All Users"
+5. Administrator changes access to "Restricted"
+6. Administrator selects allowed roles: "System Administrator, Department Coordinator"
+7. Administrator adds specific users: "Ministry Chief of Staff"
+8. Administrator sets download restrictions: "View Only, No Download"
+9. System saves updated permissions
+10. General user attempts to view document list
+11. Sensitive document does not appear in their view
+12. Department Coordinator views document list
+13. Sensitive document appears with "View Only" indicator
+14. Coordinator can view but cannot download document
+15. All access attempts are logged in audit trail
+
+**Postconditions**:
+
+- Document access is restricted to authorized users only
+- Unauthorized users cannot view or access document
+- Authorized users have appropriate level of access
+- Complete audit trail exists for compliance review
+
+## Business Value
+
+### Primary Benefits
+
+- **Centralization**: Single location for all debate-related documents
+- **Security**: Controlled access to sensitive parliamentary materials
+- **Traceability**: Complete version history and audit trails
+- **Efficiency**: Quick upload and retrieval of supporting materials
+- **Collaboration**: Shared access to documents across teams
+
+### Impact
+
+- Reduces time spent locating relevant documents
+- Prevents unauthorized access to sensitive materials
+- Ensures document authenticity through version control
+- Supports informed decision-making with easy document access
+
+## Priority
+
+**MoSCoW Classification**: **Should Have**
+
+Important for supporting comprehensive debate records and document management, but debates can
+function with external document storage if necessary.
+
+## Implementation Status
+
+**Status**: Implemented  
+**Version**: 1.0  
+**Last Updated**: 2024-Q4
+
+### Key Milestones
+
+- ✅ File upload and storage integration
+- ✅ Object storage backend (MinIO compatible)
+- ✅ File type validation
+- ✅ Access control integration
+- ✅ Version tracking
+- ✅ Search and retrieval
+
+## Dependencies
+
+### Upstream Dependencies
+
+- [FR-005: User Management](./fr-005-user-management) - User authentication and roles
+- [FR-006: Debate Organization](./fr-006-debate-organization) - Debate associations
+
+### Downstream Dependencies
+
+- [FR-010: Dossier Building](./fr-010-dossier-building) - May include file attachments
+
+### External Dependencies
+
+- Object storage system (MinIO or S3-compatible)
+- Virus scanning service (optional but recommended)
+- File format libraries for preview generation
+
+## Technical Overview
+
+### High-Level Architecture
+
+The file management system provides secure document storage and retrieval:
+
+**Storage Backend**: Object storage (MinIO or S3-compatible) provides scalable file storage. Files
+are organized by debate ID and file type. Storage keys use UUID-based naming to prevent collisions
+and directory traversal attacks.
+
+**Upload Pipeline**: Client uploads directly to backend API. File validation checks file type, size,
+and content. Optional virus scanning scans uploaded files before storage. Files are stored with
+metadata in database and content in object storage.
+
+**Access Control**: File access inherits from debate permissions. Additional file-specific
+permissions can override debate defaults. Download URLs are pre-signed with expiration to prevent
+unauthorized access. Audit logging tracks all file access.
+
+**Version Management**: New file uploads can be marked as new version of existing file. Version
+history links files in sequence. Each version stored independently with complete metadata. Version
+comparison available for supported formats.
+
+**Metadata Storage**: Database stores file records including filename, size, MIME type, upload
+timestamp, uploader ID, debate association, version information, and access permissions.
+
+### Supported File Types
+
+- **Documents**: PDF, Microsoft Office, OpenDocument, plain text
+- **Images**: JPEG, PNG, GIF (for diagrams and charts)
+- **Archives**: ZIP (for document packages)
+
+### Key Design Principles
+
+- **Security First**: Multi-layer security with validation, scanning, and access control
+- **Scalable Storage**: Object storage supports growing document volumes
+- **Audit Trail**: Complete tracking of upload, access, and modifications
+- **User-Friendly**: Simple drag-drop interface for uploads
+- **Version Safe**: Version history prevents accidental loss
+
+## Related Documentation
+
+- **Backend Controller**: `/KDAI-backend/app/Http/Controllers/FileController.php`
+- **File Model**: `/KDAI-backend/app/Models/File.php`
+- **Storage Config**: `/KDAI-backend/config/filesystems.php`
+- **Frontend Upload**: `/KDAI-frontend/src/components/FileUpload.vue`
+- **Storage Service**: `/KDAI-backend/app/Services/FileStorageService.php`
+- **MinIO Setup**: `/KDAI-DockerCompose/compose.minio.yaml`
+
+---
+
+**Document Version**: 2.0  
+**Last Reviewed**: 2025-11-11

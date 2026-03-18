@@ -1,0 +1,507 @@
+---
+title: Backend (Laravel)
+description: Laravel API for debate orchestration and real-time updates
+---
+
+import { MermaidChart } from '../../../components/MermaidChart';
+
+Laravel 12 backend with integrated AI processing for debate transcription and question extraction.
+
+## Technology Stack
+
+- **Framework**: Laravel 12 (PHP 8.2+)
+- **Database**: PostgreSQL 18
+- **Storage**: MinIO (S3-compatible)
+- **AI**: Integrated LLM for question extraction
+- **Authentication**: Laravel Sanctum
+- **Broadcasting**: Laravel Reverb (WebSocket)
+- **Cache/Queue**: Valkey (Redis 9.0)
+- **Ports**: 8000 (HTTP), 8080 (WebSocket)
+
+## Core Features
+
+### Debate Management
+
+- Create, view, and manage parliamentary debates
+- Real-time transcription status tracking
+- File upload and management for debates
+- Preparation text and AI-generated questions
+
+### User Management
+
+- Department-based user organization
+- Role assignment for debate participation
+- Authentication and authorization via Sanctum
+
+### Transcription Pipeline
+
+- **Orchestrates ATTS via Redis**: Sends start/stop commands to CSP service
+- **Receives Real-time Transcripts**: Redis queue from CSP with completed segments
+- **Transcript Processing**: Applies filtering, deduplication, and cleaning
+- **AI Question Extraction**: Integrated LLM analyzes transcripts for questions
+- **User Corrections**: Handles manual transcript corrections and re-processing
+
+### Real-time Updates
+
+- WebSocket broadcasting via Laravel Reverb
+- Live transcript updates
+- Question extraction notifications
+- Transcript correction broadcasts
+
+## Job Processing Architecture
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`graph TB
+    Backend[Laravel Backend] -->|Redis Commands| Redis[(Redis)]
+    
+    Redis -->|Start/Stop Commands| CSP[kdai-atts-csp]
+    CSP -->|Redis Queue ts_segment_complete| Queue_Worker[Queue Worker]
+    
+    Queue_Worker -->|Process Transcript| Filter[Transcript Filter]
+    Filter -->|Trigger AI| QES_Handler[Question Extraction]
+    QES_Handler -->|LLM Processing| LLM[Integrated AI]
+    
+    Filter -->|Save Transcript| DB[(PostgreSQL)]
+    LLM -->|Save Questions| DB
+    
+    Backend -->|File Management| MinIO[(MinIO Storage)]
+    
+    classDef backend fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef queue fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef job fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef storage fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    
+    class Backend backend
+    class Redis queue
+    class WS_Handler,Filter,QES_Handler job
+    class MinIO,DB storage
+`}
+/>
+
+## Real-time Transcription Handling
+
+### Redis Queue Transcript Reception
+
+The backend processes transcript segments from the Redis queue populated by CSP. Queue workers
+continuously monitor and process incoming transcripts. This is separate from the Laravel Reverb
+WebSocket server used for frontend broadcasting.
+
+**Queue Architecture:**
+
+```
+CSP → Redis Queue → Backend Queue Worker → Processing Pipeline
+                                              ↓
+                                  Database + Reverb Broadcast
+```
+
+**Incoming Redis Queue Message Format:**
+
+**Queue Name**: `ts_segment_complete`
+
+```json
+{
+  "debate_id": "uuid",
+  "segment_id": "00_05_23_456",
+  "transcript_content": "Complete transcribed sentence.",
+  "is_realtime": true
+}
+```
+
+**Processing Flow:**
+
+1. **Receive Segment**: Queue worker pulls completed segment from `ts_segment_complete` Redis queue
+2. **Validate**: Check debate exists and is active
+3. **Filter Text**: Apply cleaning, normalization, deduplication
+4. **Save to Database**: Store transcript segment with metadata
+5. **Extract Questions**: Trigger AI analysis if segment contains questions
+6. **Broadcast**: Send updates to frontend via Laravel Reverb WebSocket
+
+### Command Queue Processing
+
+Redis is used for command/control messages to CSP:
+
+**Start Capture:**
+
+```json
+{
+  "action": "start_capture",
+  "debate_id": "uuid",
+  "m3u8_url": "https://stream.example.com/playlist.m3u8"
+}
+```
+
+**Stop Capture:**
+
+```json
+{
+  "action": "stop_capture",
+  "debate_id": "uuid"
+}
+```
+
+## API Endpoints Summary
+
+### Authentication Flow
+
+<MermaidChart
+    client:only="react"
+  chartDefinition={`sequenceDiagram
+    participant Client
+    participant Backend as Laravel API
+    participant Sanctum
+    participant DB as PostgreSQL
+
+    Client->>Backend: POST /api/auth/login
+    Backend->>DB: Validate credentials
+    DB-->>Backend: User data
+    Backend->>Sanctum: Generate token
+    Sanctum-->>Backend: Sanctum token
+    Backend-->>Client: Token + user data
+
+    Client->>Backend: API calls with token
+    Backend->>Sanctum: Validate token
+    Sanctum-->>Backend: Token valid
+    Backend->>DB: Process request
+    DB-->>Backend: Response data
+    Backend-->>Client: API response
+
+`} />
+
+### Endpoint Categories
+
+#### Public
+
+- `GET /api/health` - Health check
+
+#### Authentication
+
+- `POST /api/auth/login` - User authentication
+- `POST /api/auth/logout` - User logout
+- `POST /api/auth/refresh-token` - Refresh auth token
+
+#### API Key Protected (Service Communication)
+
+- `POST /api/debate/transcript` - Receive transcripts from ATTS
+- `POST /api/debate/transcript/error` - Handle transcript errors
+- `POST /api/debate/question` - Receive questions from QES
+- `POST /api/debate/question/error` - Handle question errors
+- `GET /api/topic/debate/{debateID}` - Get topics for debate (API key access)
+- `POST /api/atts/start-capture` - Start ATTS capture
+- `POST /api/atts/stop-capture` - Stop ATTS capture
+- `POST /api/atts/ts-segment-complete` - Handle TS segment completion
+- `GET /api/atts/health` - ATTS health check
+
+#### Debates (Authenticated)
+
+- `GET /api/debate` - List debates
+- `GET /api/debate/{debateID}` - Get debate details
+- `POST /api/debate` - Create debate, starts ATTS capture
+- `DELETE /api/debate/{debateID}` - Delete debate, stops ATTS capture
+- `GET /api/debate/user` - Get user's debates
+- `GET /api/debate/{debateID}/preparation` - Get preparation data
+- `POST /api/debate/{debateID}/preparation` - Generate AI preparation
+- `PUT /api/debate/{debateID}/preparation` - Save preparation
+- `GET /api/debate/{debateID}/files` - List debate files
+- `POST /api/debate/{debateID}/files` - Upload files
+- `GET /api/debate/{debateID}/files/{fileID}/download` - Download file
+- `DELETE /api/debate/{debateID}/files/{fileID}` - Delete file
+
+#### Questions (Authenticated)
+
+- `GET /api/debateQuestion/questions/{debateID}` - List debate questions
+- `POST /api/debateQuestion` - Create question
+- `GET /api/debateQuestion/{debateQuestionID}` - Get question
+- `PUT /api/debateQuestion/{debateQuestionID}` - Update question
+- `DELETE /api/debateQuestion/{debateQuestionID}` - Delete question
+
+#### Topics (Authenticated)
+
+- `GET /api/topic/debate/{debateID}` - List debate topics
+- `POST /api/topic` - Create topic
+- `GET /api/topic/{topicID}` - Get topic
+- `PUT /api/topic/{topicID}` - Update topic
+- `DELETE /api/topic/{topicID}` - Delete topic
+- `POST /api/topic/{topicID}/debate/{debateID}` - Attach topic to debate
+- `DELETE /api/topic/{topicID}/debate/{debateID}` - Detach topic
+
+#### Transcripts (Authenticated)
+
+- `POST /api/transcript/toggle` - Start/stop transcription
+- `POST /api/transcript/getFullTranscript` - Get complete transcript
+- `GET /api/debate/{debateID}/segment` - List segments
+- `GET /api/debate/{debateID}/segment/{segmentID}` - Get segment
+- `PATCH /api/debate/{debateID}/segment/{segmentID}` - Update segment
+
+#### Users (Authenticated)
+
+- `GET /api/user/getSignedInUser` - Get current user
+- `GET /api/user/getDepartment` - Get user's department
+- `POST /api/user/department` - Get users by department
+- `GET /api/user/{userID}` - Get user details
+- `POST /api/user` - Create user
+- `PUT /api/user/{userID}` - Update user
+
+#### Departments & Roles (Authenticated)
+
+- `GET /api/department` - List departments
+- `POST /api/department` - Create department
+- `GET /api/department/{departmentID}` - Get department
+- `DELETE /api/department/{departmentID}` - Delete department
+- `GET /api/role` - List roles
+- `GET /api/role/{roleID}` - Get role
+- `GET /api/departmentRole` - List department roles
+- `GET /api/departmentRole/{departmentRoleID}` - Get department role
+
+#### Internal API (API Key Protected)
+
+- `POST /api/internal/debate/{debateID}/segment/{segmentID}/corrected-transcript` - Update corrected
+  transcript
+- `GET /api/internal/debate/{debateID}/segment/{segmentID}/text` - Get segment text
+
+#### Additional Resources (Authenticated)
+
+- `GET /api/debateUserRole` - Create debate user role
+- `GET /api/room` - List rooms
+- `GET /api/room/{roomID}` - Get room
+- `POST /api/room` - Create room
+- `DELETE /api/room/{roomID}` - Delete room
+- `POST /api/transcriptCorrection/sendCorrectedTranscript` - Send corrected transcript
+- `POST /api/transcript-corrections` - Create transcript correction
+- `GET /api/transcript-corrections` - List transcript corrections
+- `PUT /api/transcript-corrections/{correctionID}` - Update transcript correction
+- `DELETE /api/transcript-corrections/{correctionID}` - Delete transcript correction
+- `GET /api/emulator` - List emulator statuses
+- `POST /api/emulator` - Create emulator status
+
+## Real-time Broadcasting
+
+### Event Broadcasting Architecture
+
+Laravel Reverb broadcasts events to WebSocket channels for real-time frontend synchronization.
+Events use `ShouldBroadcast` or `ShouldBroadcastNow` interfaces to trigger WebSocket messages.
+
+**Broadcasting Flow:**
+
+```
+Controller → Event → Laravel Reverb → Frontend Echo → TanStack DB Collection
+```
+
+### Channel Structure
+
+| Channel Pattern          | Type   | Purpose                   | Authorization        |
+| ------------------------ | ------ | ------------------------- | -------------------- |
+| `questions.{debate_id}`  | Public | Question CRUD events      | Debate participation |
+| `transcript.{debate_id}` | Public | Transcript segment events | Debate participation |
+| `error.{debate_id}`      | Public | Processing error events   | Debate participation |
+
+### Event Catalog
+
+| Event                        | Channel                 | Event Name                        | Trigger               | Frontend Handler                              |
+| ---------------------------- | ----------------------- | --------------------------------- | --------------------- | --------------------------------------------- |
+| `DebateQuestionAddedEvent`   | `questions.{debateId}`  | `.questions.added_event`          | AI extracts question  | `useDebateQuestionsSync` → `writeUpsert()`    |
+| `DebateQuestionUpdatedEvent` | `questions.{debateId}`  | `.questions.updated_event`        | Question edited       | `useDebateQuestionsSync` → `writeUpdate()`    |
+| `DebateQuestionDeletedEvent` | `questions.{debateId}`  | `.questions.deleted_event`        | Question deleted      | `useDebateQuestionsSync` → `writeDelete()`    |
+| `TranscriptAddedEvent`       | `transcript.{debateId}` | `.transcript.added_event`         | New segment from ATTS | `useTranscriptSegmentsSync` → `writeUpsert()` |
+| `TranscriptUpdatedEvent`     | `transcript.{debateId}` | `.transcript.updated_event`       | Segment corrected     | `useTranscriptSegmentsSync` → `writeUpdate()` |
+| `TranscriptStartStopEvent`   | `transcript.{debateId}` | `.transcript.start_or_stop_event` | Debate status change  | UI status indicator                           |
+| `ErrorEvent`                 | `error.{debateId}`      | `error.new_error_event`           | Processing error      | Error notification                            |
+
+### Event Implementation Examples
+
+**Question Added Event:**
+
+```php
+// app/Events/DebateQuestionAddedEvent.php
+class DebateQuestionAddedEvent implements ShouldBroadcast {
+    public string $debateID;
+    public string $questionID;
+    public string $text;
+    public int $timestamp;
+    public int $questionNumber;
+    public ?array $topic;
+    public ?string $context;
+
+    public function broadcastOn(): array {
+        return [new Channel('questions.'.$this->debateID)];
+    }
+
+    public function broadcastAs(): string {
+        return 'questions.added_event';
+    }
+
+    public function broadcastWith(): array {
+        return [
+            'id' => $this->questionID,
+            'text' => $this->text,
+            'timestamp' => $this->timestamp,
+            'question_number' => $this->questionNumber,
+            'topic' => $this->topic,
+            'context' => $this->context,
+        ];
+    }
+}
+```
+
+**Transcript Segment Event:**
+
+```php
+// app/Events/TranscriptAddedEvent.php
+class TranscriptAddedEvent implements ShouldBroadcastNow {
+    public string $debateID;
+    public string $segmentID;
+    public string $transcript;
+    public ?int $timestampMs;
+
+    public function broadcastOn(): array {
+        return [new Channel('transcript.'.$this->debateID)];
+    }
+
+    public function broadcastAs(): string {
+        return 'transcript.added_event';
+    }
+
+    public function broadcastWith(): array {
+        return [
+            'id' => $this->id,
+            'transcript' => $this->transcript,
+            'segment_id' => $this->segmentID,
+            'timestamp_ms' => $this->timestampMs,
+        ];
+    }
+}
+```
+
+**Controller Usage:**
+
+```php
+// app/Http/Controllers/DebateQuestionController.php
+public function update(Request $request, string $id) {
+    $question = DebateQuestion::findOrFail($id);
+    $question->update($request->validated());
+
+    // Broadcast to all connected clients
+    DebateQuestionUpdatedEvent::dispatch(
+        debateID: $question->debate_id,
+        questionID: $question->id,
+        text: $question->text,
+        timestamp: $question->timestamp_ms,
+        questionNumber: $question->question_number,
+        topic: $question->topic?->toArray(),
+        context: $question->context,
+        party: $question->party,
+        commissioner: $question->commissioner,
+        assignedTo: $question->assigned_to
+    );
+
+    return response()->json($question);
+}
+```
+
+### Broadcasting vs Queued Events
+
+| Interface            | Behavior                          | Use Case                                      |
+| -------------------- | --------------------------------- | --------------------------------------------- |
+| `ShouldBroadcastNow` | Immediate broadcast (synchronous) | Critical real-time updates (transcripts)      |
+| `ShouldBroadcast`    | Queued broadcast (asynchronous)   | Non-critical updates (questions, corrections) |
+
+**Note:** `TranscriptAddedEvent` uses `ShouldBroadcastNow` to ensure immediate delivery during live
+debates.
+
+### Authorization
+
+Channel authorization is configured in `routes/channels.php`:
+
+```php
+Broadcast::channel('questions.{debateId}', function ($user, $debateId) {
+    return $user->canAccessDebate($debateId);
+});
+
+Broadcast::channel('transcript.{debateId}', function ($user, $debateId) {
+    return $user->canAccessDebate($debateId);
+});
+```
+
+Frontend subscribes with authentication token:
+
+```typescript
+// src/services/echoService.ts
+window.Echo = new Echo({
+  broadcaster: 'reverb',
+  key: import.meta.env.VITE_REVERB_APP_KEY,
+  wsHost: location.hostname,
+  wsPort: 8001,
+  wsPath: '/app',
+  forceTLS: location.protocol.startsWith('https'),
+  auth: {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  },
+});
+```
+
+## Storage Structure
+
+MinIO S3-compatible storage is used for file management and debate attachments:
+
+```
+debates/
+├── {debate_id}/
+│   └── files/
+│       └── {file_id}/
+│           └── {original_name}
+```
+
+**Note:** MinIO is **not used** for real-time transcription audio. Audio is streamed directly from
+M3U8 sources through CSP to WhisperLive via WebSocket without intermediate storage. MinIO is only
+used for uploaded debate files and attachments.
+
+## Configuration
+
+Key environment variables:
+
+```bash
+# Database
+DB_CONNECTION=pgsql
+DB_HOST=postgres
+DB_DATABASE=kdai
+
+# Storage (MinIO S3)
+AWS_ENDPOINT=http://minio:9000
+AWS_BUCKET=debates
+AWS_ACCESS_KEY_ID=admin
+AWS_SECRET_ACCESS_KEY=password
+
+# AI/LLM
+LLM_API_URL=http://ollama:11434
+LLM_MODEL=mistral-nemo:12b
+
+# Authentication
+STATIC_API_KEY=api_key
+
+# WebSocket (Laravel Reverb)
+REVERB_APP_KEY=kdai-app-key-123
+REVERB_APP_ID=kdai-app-id
+REVERB_HOST=0.0.0.0
+REVERB_PORT=8081
+REVERB_PATH=/app
+
+# Queue/Cache
+QUEUE_CONNECTION=redis
+REDIS_HOST=redis
+```
+
+**WebSocket Architecture**: Reverb runs on `0.0.0.0:8081`. Nginx proxies `localhost:8001/app` to
+Reverb, allowing frontend to connect via a single port for both API and WebSocket traffic.
+
+## Development Commands
+
+```bash
+php artisan key:generate
+php artisan migrate
+php artisan reverb:start
+php artisan queue:work
+php artisan test
+php artisan tinker
+```

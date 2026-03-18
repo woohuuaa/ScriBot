@@ -1,0 +1,178 @@
+---
+title: Docker Setup
+description: Building and running KDAI with Docker Compose
+---
+
+## Project Structure
+
+```
+kdai2/
+├── KDAI-backend/          # Laravel backend API
+├── KDAI-frontend/         # Vue.js frontend
+├── KDAI-services/         # Python microservices (ATTS, QES)
+└── KDAI-DockerCompose/    # Docker orchestration
+```
+
+## Setup
+
+### 1. Clone Repository
+
+```bash
+git clone https://github.com/W-KDAI/kdai2.git
+cd kdai2
+```
+
+### 2. Environment Configuration
+
+Create environment files:
+
+```bash
+cd KDAI-DockerCompose
+cp .env.example .env
+
+cd ../KDAI-backend
+cp .env.example .env
+
+cd ../KDAI-services
+cp .env.example .env
+```
+
+See [Environment Configuration](/installation/environment/) for details.
+
+### 3. Build Images
+
+```bash
+cd KDAI-DockerCompose
+docker compose build
+```
+
+### 4. Start Services
+
+```bash
+docker compose up -d
+```
+
+### 5. Initialize Database
+
+```bash
+docker compose exec backend php artisan migrate --seed
+docker compose exec backend php artisan key:generate
+```
+
+### 6. Initialize Storage
+
+```bash
+docker compose exec backend php artisan storage:link
+```
+
+Or access MinIO console at `http://localhost:9001`.
+
+## Compose Files
+
+### Main Services
+
+`KDAI-DockerCompose/compose.yaml`:
+
+- `postgres`: PostgreSQL database
+- `minio`: MinIO object storage
+- `backend`: Laravel API
+- `frontend`: Vue.js application
+
+### AI Services
+
+`KDAI-services/compose.yaml`:
+
+- `atts`: Audio processing
+- `tcs`: Transcription
+- `qes`: Question extraction
+
+### Running All Services
+
+```bash
+# From KDAI-DockerCompose
+docker compose -f compose.yaml -f compose.minio.yaml up -d
+
+# From KDAI-services
+cd ../KDAI-services
+docker compose up -d
+```
+
+## Service Management
+
+### View Status
+
+```bash
+docker compose ps
+```
+
+### View Logs
+
+```bash
+docker compose logs -f
+docker compose logs -f backend
+```
+
+### Stop/Start
+
+```bash
+docker compose stop
+docker compose start
+docker compose restart backend
+```
+
+### Rebuild
+
+```bash
+docker compose build backend
+docker compose up -d backend
+```
+
+### Remove
+
+```bash
+docker compose down           # Keep volumes
+docker compose down -v        # Remove volumes
+```
+
+## Health Checks
+
+```bash
+curl http://localhost:8001/health  # Application (Backend + Frontend)
+curl http://localhost:7010/health  # CSP
+```
+
+## Troubleshooting
+
+### Check Logs
+
+```bash
+docker compose logs backend
+docker compose ps
+```
+
+### Port Conflicts
+
+```bash
+sudo lsof -i :8000
+```
+
+### Permission Issues
+
+```bash
+sudo chown -R $USER:$USER .
+docker compose exec backend chown -R www-data:www-data /var/www/storage
+```
+
+### Disk Space
+
+```bash
+docker image prune -a
+docker volume prune
+docker system prune -a --volumes
+```
+
+## Next Steps
+
+- [Configure Environment Variables](/installation/environment/)
+- [Backend Configuration](/components/backend/)
+- [Deploy to Production](/deployment/production/)

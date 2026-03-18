@@ -1,0 +1,278 @@
+---
+title: FR-007 - Real-time Notifications
+description: Provide real-time updates for transcript segments and extracted questions
+---
+
+## Overview
+
+Real-time Notifications provides WebSocket-based live updates for transcript segments and extracted
+questions, keeping stakeholders informed of parliamentary proceedings as they happen, enabling
+immediate awareness and response to debate developments.
+
+## Actors
+
+- **Department Staff**: Monitors real-time updates during debates for ministry-relevant questions
+- **Department Coordinator**: Receives notifications of questions directed to their ministry
+- **Transcript Editor**: Gets alerts when transcript corrections are made
+- **Policy Officer**: Monitors debate activity for topics relevant to their ministry
+- **System Administrator**: Configures notification channels and routing
+- **Multiple Connected Users**: All receive synchronized updates simultaneously
+
+## Use Cases
+
+### UC-001: Receive Real-time Transcript Updates
+
+**Actor**: Department Staff  
+**Description**: Automatically receive new transcript segments as they are generated during live
+debates without manual refreshing, enabling continuous monitoring of proceedings for
+ministry-relevant questions.
+
+### UC-002: Get Notified of New Extracted Questions
+
+**Actor**: Department Coordinator  
+**Description**: Receive immediate notification when AI extracts a question directed to a specific
+ministry, enabling staff to begin preparing response materials without delay.
+
+### UC-003: Sync Transcript Corrections Across Users
+
+**Actor**: Multiple Transcript Editors  
+**Description**: When one editor corrects a transcript segment, all other users viewing the same
+debate immediately see the correction, preventing duplicate work and maintaining consistency.
+
+### UC-004: Monitor Debate Status Changes
+
+**Actor**: Department Staff  
+**Description**: Receive notifications when debates start, pause, resume, or conclude, enabling
+appropriate monitoring and response preparation activities.
+
+## Scenarios
+
+### Scenario 1: Multi-User Real-time Question Monitoring
+
+**Preconditions**:
+
+- Parliamentary debate is in progress with live transcription
+- Three staff members from different ministries are monitoring
+- AI question extraction is active
+- WebSocket connections are established for all users
+
+**Steps**:
+
+1. Ministry of Finance staff is monitoring debate
+2. Ministry of Education staff is also monitoring
+3. Ministry of Health staff is monitoring as well
+4. Parliament member asks question directed to Finance Ministry
+5. AI extracts question from transcript in real-time
+6. Backend broadcasts question via WebSocket to questions channel
+7. All three staff members' interfaces receive WebSocket event
+8. Finance ministry sees question highlighted as "For Your Ministry"
+9. Education and Health ministries see question in general list
+10. Finance staff clicks on question for detailed view
+11. Finance staff begins preparing briefing note for ministry
+12. Second question directed to Health Ministry is extracted
+13. Health ministry immediately receives notification
+14. All users see their interfaces update without refreshing
+
+**Postconditions**:
+
+- All users have synchronized view of extracted questions
+- Relevant ministries are immediately aware of their questions
+- No manual refreshing was required by any user
+- Staff can prepare responses proactively during ongoing debate
+
+### Scenario 2: Transcript Correction Broadcasting
+
+**Preconditions**:
+
+- Completed debate transcript is being reviewed
+- Five editors are reviewing different sections simultaneously
+- WebSocket-based sync is operational
+- TanStack DB collection manages transcript state
+
+**Steps**:
+
+1. Editor A is reviewing minutes 0-30 of transcript
+2. Editor B is reviewing minutes 31-60 simultaneously
+3. Editor A identifies speaker misattribution at minute 15
+4. Editor A corrects "Unknown Speaker" to "Minister van Justitie"
+5. Frontend performs optimistic update (immediate UI change)
+6. Correction is sent to backend API
+7. Backend validates and saves correction
+8. Backend broadcasts transcript update event via WebSocket
+9. Editor B's interface receives WebSocket event
+10. Editor B's TanStack DB collection processes update
+11. Editor B sees minute 15 update in their view (though working on different section)
+12. Editor C logs in mid-session
+13. Editor C receives complete current state on connection
+14. All editors maintain synchronized view of corrections
+
+**Postconditions**:
+
+- All editors have consistent view of transcript
+- Corrections are immediately visible to all users
+- No conflicts or duplicate corrections occurred
+- Late-joining users receive current state
+
+### Scenario 3: Debate Status Notification for Monitoring Coordination
+
+**Preconditions**:
+
+- Multiple debates scheduled throughout the day
+- Department coordinators managing monitoring activities
+- Multiple staff members need coordination
+- WebSocket notification system is operational
+
+**Steps**:
+
+1. Department coordinator monitors debate schedule dashboard
+2. Main chamber debate is scheduled to start at 14:00
+3. Committee room debate is already in progress
+4. Main chamber debate starts at 14:00
+5. Backend broadcasts "Debate Started" event via WebSocket
+6. Coordinator's dashboard immediately shows Main Chamber as "Active"
+7. Coordinator alerts team to begin monitoring Main Chamber
+8. Staff members begin tracking questions for their ministry
+9. Committee room debate is paused for break at 14:15
+10. Backend broadcasts "Debate Paused" event
+11. Dashboard updates Committee Room status to "Paused"
+12. Staff can focus entirely on Main Chamber during pause
+13. Committee debate resumes at 14:30
+14. Backend broadcasts "Debate Resumed" event
+15. Dashboard reflects resumed status immediately
+16. Coordinator rebalances monitoring assignments
+
+**Postconditions**:
+
+- Staff is aware of all debate status changes immediately
+- Monitoring resources are allocated efficiently based on real-time status
+- No delays due to manual status checking
+- All status changes are logged for reporting
+
+## Business Value
+
+### Primary Benefits
+
+- **Responsiveness**: Enables immediate awareness and action on debate developments
+- **Efficiency**: Eliminates need for manual refreshing and status checking
+- **Collaboration**: Supports real-time collaboration across multiple users
+- **Accuracy**: Ensures all users have consistent, synchronized data
+- **Engagement**: Increases user engagement through immediate feedback
+
+### Impact
+
+- Reduces response time from minutes to seconds
+- Prevents duplicate work through synchronized updates
+- Enables proactive rather than reactive workflows
+- Improves user experience through seamless real-time updates
+
+## Priority
+
+**MoSCoW Classification**: **Must Have**
+
+Essential for real-time collaboration and user experience. Without WebSocket updates, the system
+would require constant manual refreshing and lose its real-time value proposition.
+
+## Implementation Status
+
+**Status**: Implemented  
+**Version**: 1.0  
+**Last Updated**: 2024-Q4
+
+### Key Milestones
+
+- ✅ Laravel Reverb WebSocket server
+- ✅ Echo client integration
+- ✅ TanStack DB two-way synchronization
+- ✅ Transcript segment notifications
+- ✅ Question extraction notifications
+- ✅ Debate status notifications
+- ✅ Multi-client synchronization
+
+## Dependencies
+
+### Upstream Dependencies
+
+- [FR-002: Live Transcription](./fr-002-live-transcription) - Generates transcript events
+- [FR-003: Question Extraction](./fr-003-question-extraction) - Generates question events
+- [FR-006: Debate Organization](./fr-006-debate-organization) - Debate status events
+
+### Downstream Dependencies
+
+- [FR-009: Real-time Multi-User Working](./fr-009-realtime-multi-user-working) - Builds on
+  notification infrastructure
+
+### External Dependencies
+
+- Laravel Reverb (WebSocket server)
+- Laravel Echo (WebSocket client)
+- Nginx proxy configuration
+
+## Technical Overview
+
+### High-Level Architecture
+
+The real-time notification system uses WebSocket technology for bidirectional communication:
+
+**Backend Broadcasting**: Laravel Reverb WebSocket server runs as separate service, receiving
+broadcast events from Laravel application. Events are published to specific channels based on debate
+ID, user ID, or system-wide broadcasts.
+
+**Frontend Subscriptions**: Laravel Echo client establishes WebSocket connection on application
+load. Subscribes to relevant channels based on user context (current debate, user permissions,
+monitoring preferences).
+
+**TanStack DB Integration**: WebSocket events integrate with TanStack DB collections for reactive
+state management. Server events use `writeUpsert`, `writeUpdate`, `writeDelete` APIs to sync data.
+Client mutations trigger optimistic updates followed by API persistence.
+
+**Event Types**:
+
+- **Transcript Events**: New segments, corrections, speaker changes
+- **Question Events**: New extractions, edits, assignments, status changes
+- **Debate Events**: Start, pause, resume, end, metadata updates
+- **User Events**: Presence, collaboration indicators
+
+**Channel Structure**:
+
+```
+transcript.{debateId} - Transcript updates for specific debate
+questions.{debateId} - Question updates for specific debate
+debate.{debateId} - Debate status and metadata changes
+user.{userId} - User-specific notifications
+```
+
+**Connection Management**: Automatic reconnection on connection loss with exponential backoff.
+Queued events are replayed on reconnection. Presence channel shows active users.
+
+### Data Flow
+
+```
+Backend Event → Reverb Server → Echo Client → Channel Listener
+    → TanStack DB Write API → Collection Update → Reactive Query
+    → Vue Component Re-render
+
+User Action → TanStack DB Mutation → Optimistic Update → API Call
+    → Backend Save → Broadcast Event → Other Clients Sync
+```
+
+### Key Design Principles
+
+- **Real-time First**: Updates pushed immediately, no polling
+- **Bidirectional Sync**: Client and server both initiate updates
+- **Optimistic UI**: Immediate feedback before server confirmation
+- **Resilient**: Automatic reconnection and event replay
+- **Scalable**: Channels isolate traffic by debate/context
+
+## Related Documentation
+
+- **Backend Events**: `/KDAI-backend/app/Events/`
+- **Reverb Configuration**: `/KDAI-backend/config/reverb.php`
+- **Echo Setup**: `/KDAI-frontend/src/services/echoService.ts`
+- **Sync Composables**: `/KDAI-frontend/src/composables/use*Sync.ts`
+- **TanStack DB Collections**: `/KDAI-frontend/src/db/schema.ts`
+- **Nginx Proxy**: `/KDAI-backend/nginx.conf` (WebSocket proxy configuration)
+
+---
+
+**Document Version**: 2.0  
+**Last Reviewed**: 2025-11-11

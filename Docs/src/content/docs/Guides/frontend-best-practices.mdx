@@ -1,0 +1,349 @@
+---
+title: Frontend Best Practices
+description: Vue 3 + TypeScript development guidelines for the KDAI frontend
+---
+
+This guide outlines the established patterns and best practices for developing the Vue 3 +
+TypeScript frontend application.
+
+## API Communication
+
+### ServiceResponse Union Type
+
+All API calls return a discriminated union type for type-safe error handling:
+
+```typescript
+type ServiceResponse<T> =
+  | { data: T; error?: never }
+  | { data?: never; error: { name: string; message: string; status?: number } & Error };
+```
+
+**Usage in services:**
+
+```typescript
+// services/debateService.ts
+async getDebates(): Promise<ServiceResponse<Debate[]>> {
+  return RequestSender.unwrapResponse(
+    await RequestSender.send('debate/user', 'GET', null, true)
+  );
+}
+```
+
+**Usage in components:**
+
+```typescript
+const response = await debateService.getDebates();
+if (response.error) {
+  toastr.error(response.error.message, response.error.name);
+  return;
+}
+// response.data is guaranteed to be Debate[] here
+const debates = response.data;
+```
+
+### RequestSender Class
+
+Centralized HTTP request handling with automatic authentication:
+
+- **Token Management**: Automatic refresh on 401 responses
+- **Error Mapping**: HTTP status codes mapped to readable error names
+- **Response Unwrapping**: Extracts `response.data?.data` from Laravel API structure
+
+```typescript
+// GET request
+const response = await RequestSender.get<User[]>('users', true);
+
+// POST request
+const response = await RequestSender.post<Debate>('debate', debateData, true);
+```
+
+## Component Architecture
+
+### Composition API Structure
+
+Use `<script setup lang="ts">` with explicit prop and emit definitions:
+
+```vue
+<script setup lang="ts">
+interface Props {
+  headers: string[];
+  showActions?: boolean;
+}
+
+interface Emits {
+  rowClick: [debate: Debate];
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  showActions: false,
+});
+
+const emit = defineEmits<Emits>();
+</script>
+```
+
+### Base Components
+
+#### BaseButton
+
+```vue
+<BaseButton variant="primary" :isAuthenticated="true" @click="handleClick">
+  <i class="fas fa-plus"></i>
+  Create
+</BaseButton>
+```
+
+**Variants**: `primary`, `secondary`, `danger`, `success`, `nav`
+
+#### BaseTable
+
+```vue
+<BaseTable :headers="['Name', 'Date', 'Actions']">
+  <tr v-for="item in items" :key="item.id">
+    <td>{{ item.name }}</td>
+    <td>{{ item.date }}</td>
+    <td>
+      <BaseButton variant="primary" @click="$emit('edit', item)">
+        Edit
+      </BaseButton>
+    </td>
+  </tr>
+</BaseTable>
+```
+
+#### Spinner
+
+```vue
+<div v-if="isLoading" class="text-center">
+  <Spinner />
+</div>
+```
+
+## View Patterns
+
+### Reactive State Management
+
+```typescript
+const debates = ref<DebateRow[]>([]);
+const isLoading = ref(false);
+const errorMessage = ref('');
+```
+
+### Data Fetching Lifecycle
+
+```typescript
+import { ref, onBeforeMount } from 'vue';
+
+const fetchDebates = async () => {
+  isLoading.value = true;
+  errorMessage.value = '';
+
+  const response = await debateService.getDebates();
+  if (response.error) {
+    toastr.error(response.error.message, response.error.name);
+    debates.value = [];
+    isLoading.value = false;
+    return;
+  }
+
+  debates.value = response.data.map(transformDebate);
+  isLoading.value = false;
+};
+
+onBeforeMount(async () => {
+  await fetchDebates();
+});
+```
+
+### Error Handling
+
+- Use `toastr` for user notifications
+- Map error status to appropriate titles
+- Handle loading states during async operations
+
+```typescript
+if (response.error) {
+  const title =
+    response.error.status && response.error.status >= 400 ? 'Fout' : response.error.name;
+  toastr.error(response.error.message, title);
+}
+```
+
+## Type Definitions
+
+### Model Interfaces
+
+All models defined in `types/index.ts` with JSDoc links to backend:
+
+```typescript
+/**
+ * Debate model
+ * @see App\Models\Debate
+ */
+export interface Debate {
+  id: string;
+  title: string;
+  date?: string;
+  room_id?: string;
+  department_id?: string;
+  // ...
+}
+```
+
+### API Response Types
+
+Specific interfaces for API responses:
+
+```typescript
+export interface DepartmentResponse {
+  department?: Department;
+  departmentID?: string;
+}
+```
+
+## Utilities
+
+### Formatters
+
+Use utility functions for consistent display formatting:
+
+```typescript
+// utils/formatters.ts
+export const getDepartmentDisplayName = (
+  department: { short_name?: string; name?: string } | null | undefined
+): string => {
+  return department?.short_name || department?.name || '-';
+};
+```
+
+### App Service
+
+Shared business logic in `services/appService.ts`:
+
+```typescript
+export const appService = {
+  formatDateToNL: (dateString: string): string => {
+    // Dutch date formatting logic
+  },
+};
+```
+
+## Styling Guidelines
+
+### Tailwind CSS
+
+- Use utility classes for layout and appearance
+- Consistent color scheme with CSS variables
+- Responsive design with flexbox and grid
+
+### FontAwesome Icons
+
+- Consistent icon usage: `<i class="fas fa-plus"></i>`
+- Icons paired with text in buttons and links
+
+## Code Organization
+
+### File Structure
+
+```
+src/
+├── components/
+│   ├── forms/          # Form components
+│   ├── layout/         # Layout components
+│   ├── misc/           # BaseButton, Spinner, etc.
+│   └── table/          # BaseTable, specific tables
+├── services/           # API service layer
+├── types/              # TypeScript definitions
+├── utils/              # Helper functions
+└── views/              # Page components
+```
+
+### Naming Conventions
+
+- **Components**: PascalCase (`BaseButton.vue`, `DebateTable.vue`)
+- **Services**: camelCase (`debateService.ts`)
+- **Types**: PascalCase (`Debate`, `ServiceResponse`)
+- **Files**: kebab-case (`debate-overview.vue`)
+- **Functions/Variables**: camelCase (`fetchDebates`, `isLoading`)
+
+## Development Workflow
+
+### Component Development
+
+1. Define props interface with optional defaults
+2. Define emits interface
+3. Implement reactive state with `ref()`
+4. Handle async operations with proper error states
+5. Use base components for consistency
+
+### Service Development
+
+1. Import required types from `@/types`
+2. Return `ServiceResponse<T>` from all methods
+3. Use `RequestSender` for HTTP calls
+4. Handle response unwrapping appropriately
+
+### Type Safety
+
+- Avoid `any` types - use proper generics
+- Define interfaces for all data structures
+- Leverage TypeScript's discriminated unions for API responses
+- Use strict null checks and optional chaining
+
+## Testing Guidelines
+
+### Unit Tests
+
+- Test service methods with mocked API responses
+- Test component logic and reactive behavior
+- Verify error handling paths
+
+### Integration Tests
+
+- Test complete user flows
+- Verify API integration
+- Test authentication and authorization
+
+## Performance Considerations
+
+### Reactive Updates
+
+- Use `computed()` for derived state
+- Avoid unnecessary re-renders with proper key usage
+- Debounce rapid user input where appropriate
+
+### API Optimization
+
+- Implement proper loading states to prevent multiple requests
+- Cache static data when appropriate
+- Use pagination for large datasets
+
+## Accessibility
+
+### Semantic HTML
+
+- Use proper heading hierarchy
+- Semantic form elements with labels
+- ARIA attributes where needed
+
+### Keyboard Navigation
+
+- Ensure all interactive elements are keyboard accessible
+- Logical tab order
+- Visible focus indicators
+
+## Security
+
+### Authentication
+
+- All authenticated requests use `requiresAuth: true`
+- Automatic token refresh handling
+- Secure token storage in localStorage
+
+### Input Validation
+
+- Client-side validation for user experience
+- Server-side validation as primary defense
+- Sanitize user inputs
+
+This guide should be updated as new patterns emerge or existing ones evolve.

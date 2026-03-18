@@ -1,0 +1,186 @@
+---
+title: ATTS - Audio To Text Services
+description: Pipeline for M3U8 capture and Whisper transcription
+---
+
+import { MermaidChart } from '../../../components/MermaidChart';
+
+ATTS provides real-time audio transcription from live M3U8 streams using WhisperLive, with the CSP
+service streaming audio directly to WhisperLive and transcriptions back to the Laravel backend via
+WebSocket.
+
+## Architecture Overview
+
+<MermaidChart client:only="react" chartDefinition={`graph TB
+    subgraph "ATTS Real-time Pipeline"
+        CSP[Continuous Stream Processor  Port 7010]
+        WhisperLive[WhisperLive Server  Port 9090]
+    end
+
+    Backend[(Laravel Backend)]
+    Redis[(Redis Queue)]
+    Stream[M3U8 Stream]
+
+    Backend -->|start/stop| Redis
+    Redis --> CSP
+    Stream -->|HLS audio| CSP
+    CSP -->|WebSocket audio stream| WhisperLive
+    WhisperLive -->|WebSocket transcription| CSP
+    CSP -->|Redis queue transcript segments| Backend
+    Backend -->|filter & broadcast| Backend
+
+`} />
+
+## Services
+
+### CSP - Continuous Stream Processor
+
+Streams live M3U8 audio to WhisperLive and processes real-time transcriptions.
+
+**Key Functions:**
+
+- Connects to live M3U8 streams
+- Extracts and streams audio using FFmpeg (16kHz mono, float32)
+- Streams audio to WhisperLive via WebSocket in real-time
+- Buffers and deduplicates transcription segments
+- Detects and removes duplicate segments with fuzzy matching
+- Sends completed segments to backend via Redis queue
+
+**Audio Processing:**
+
+```bash
+# FFmpeg streaming configuration
+Format: f32le (32-bit float little-endian)
+Sample Rate: 16000 Hz
+Channels: 1 (mono)
+Chunk Size: 16384 bytes
+```
+
+**Segment Buffer Configuration:**
+
+```python
+SegmentBuffer(
+    similarity_threshold=0.85,  # Fuzzy matching for duplicates
+    short_sentence_threshold=15,  # Min chars for valid segment
+    segments_to_wait_for_corrections=1,  # Wait for corrections
+    max_dedup_history=50  # Max segments in dedup cache
+)
+```
+
+**Redis Queue Output to Backend:**
+
+```json
+{
+  "debate_id": "uuid",
+  "segment_id": "00_05_23_456",
+  "transcript_content": "Completed transcription segment.",
+  "is_realtime": true
+}
+```
+
+**Queue Name**: `ts_segment_complete`
+
+### WhisperLive - Real-time Transcription Service
+
+Real-time speech recognition using OpenAI Whisper.
+
+**Key Functions:**
+
+- Receives audio stream from CSP via WebSocket
+- Performs real-time speech-to-text transcription
+- Uses Voice Activity Detection (VAD) for segment boundaries
+- Sends transcription segments and corrections back to CSP
+- Supports multiple languages with Dutch optimization
+
+**Configuration:**
+
+```bash
+WHISPERLIVE_HOST=kdai-whisperlive
+WHISPERLIVE_PORT=9090
+```
+
+**Session Setup (sent by CSP):**
+
+```json
+{
+  "uid": "unique-session-id",
+  "language": "nl",
+  "task": "transcribe",
+  "model": "turbo",
+  "use_vad": true
+}
+```
+
+## Data Flow
+
+<MermaidChart client:only="react" chartDefinition={`sequenceDiagram
+    participant B as Backend
+    participant R as Redis
+    participant C as CSP
+    participant W as WhisperLive
+    participant S as M3U8 Stream
+
+    B->>R: Start capture command
+    R->>C: Process stream request
+    C->>W: Connect WebSocket
+    C->>S: Start FFmpeg stream
+
+    loop Real-time Processing
+        S->>C: Audio chunks (HLS)
+        C->>C: Convert to 16kHz float32
+        C->>W: Stream audio via WebSocket
+        W->>C: Transcription segments
+        C->>C: Buffer & deduplicate segments
+        C->>R: Push to Redis queue
+        B->>R: Pull from queue
+        B->>B: Filter & broadcast to frontend
+    end
+
+    B->>R: Stop capture command
+    R->>C: Stop processing
+    C->>W: Close WebSocket
+    C->>S: Stop FFmpeg
+
+`} />
+
+## Backend Integration
+
+The Laravel backend orchestrates ATTS services through Redis queues:
+
+- **Control Commands**: Start/stop capture commands sent via `csp_queue`
+- **Transcript Reception**: Receives real-time transcript segments from `ts_segment_complete` queue
+- **Filtering**: Applies text cleaning and deduplication logic
+- **Real-time Broadcasting**: Dispatches WebSocket events to frontend via Laravel Reverb
+- **Error Handling**: Manages service failures via `ts_segment_complete` queue (segment_id="error")
+
+## Real-time Flow Architecture
+
+```
+M3U8 Stream → FFmpeg (CSP) → WhisperLive → CSP Buffer → Redis Queue → Backend → Reverb → Frontend
+                                                                           ↓
+                                                                       Database
+```
+
+**Processing Characteristics:**
+
+- Segments sent when WhisperLive marks them as `completed=True`
+- Fuzzy matching for duplicate detection (threshold: 0.85)
+
+## Configuration
+
+```bash
+# Service Ports
+CSP_DOCKER_PORT=7010
+WHISPERLIVE_PORT=9090
+
+# Redis
+REDIS_URL=redis://kdai-redis:6379/0
+
+# WhisperLive
+WHISPERLIVE_HOST=kdai-whisperlive
+WHISPERLIVE_PORT=9090
+
+# Frontend WebSocket (Laravel Reverb)
+REVERB_HOST=0.0.0.0
+REVERB_PORT=8081
+```

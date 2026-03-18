@@ -1,0 +1,130 @@
+---
+title: Infrastructure Components
+description: Database and storage systems for KDAI
+---
+
+KDAI uses PostgreSQL for relational data, MinIO for object storage, and Redis for caching and
+queuing.
+
+## PostgreSQL Database
+
+**Version**: 18  
+**Port**: 5432  
+**Image**: `postgres:18.0`
+
+### Configuration
+
+```bash
+POSTGRES_DB=kdai
+POSTGRES_USER=postgres_user
+POSTGRES_PASSWORD=your_password
+```
+
+### Key Tables
+
+- `debates` - Debate metadata
+- `users` - User accounts
+- `roles` - User roles
+- `departments` - Organizational departments
+- `rooms` - Physical/virtual debate rooms
+- `debate_users` - Debate participants
+- `debate_departments` - Debate department associations
+- `transcript_edit_logs` - Transcript corrections
+
+### Access
+
+```bash
+# Connect via psql
+docker compose exec postgresql psql -U postgres_user -d kdai
+
+# Run migrations
+docker compose exec kdai-backend php artisan migrate
+```
+
+## MinIO Object Storage
+
+**Version**: RELEASE.2025-09-07T16-13-09Z  
+**Ports**: 9000 (API), 9001 (Console)  
+**S3-Compatible**: Yes
+
+### Configuration
+
+```bash
+MINIO_ROOT_USER=admin
+MINIO_ROOT_PASSWORD=your_password
+MINIO_DEBATE_BUCKET_NAME=debates
+```
+
+### Buckets
+
+- `debates` - Audio segments and transcripts
+
+### Service Accounts
+
+Each service has dedicated credentials:
+
+- `kdai-backend-user` - Backend service
+- `kdai-tcs-user` - Transcription service
+- `kdai-qes-user` - Question extraction service
+- `kdai-csp-user` - Capture service
+
+### Access
+
+- **Console**: http://localhost:9001
+- **API**: http://localhost:9000
+
+## Redis (Valkey)
+
+**Version**: 9.0  
+**Port**: 6379  
+**Image**: `valkey/valkey:9.0-trixie`
+
+### Purpose
+
+- Session storage
+- Cache backend
+- Queue backend (Laravel jobs)
+- Service communication
+
+### Configuration
+
+```bash
+REDIS_URL=redis://kdai-redis:6379/0
+REDIS_CLIENT=predis
+```
+
+### Access
+
+```bash
+# Connect to Redis CLI
+docker compose exec kdai-redis redis-cli
+
+# Check connection
+docker compose exec kdai-redis redis-cli ping
+```
+
+## Data Volumes
+
+Persistent storage locations:
+
+```yaml
+volumes:
+  _storage/db_data        # PostgreSQL data
+  _storage/minio_data     # MinIO objects
+  _storage/minio_config   # MinIO configuration
+```
+
+### Backup
+
+```bash
+# Backup database
+docker compose exec postgresql pg_dump -U postgres_user kdai > backup.sql
+
+# Restore database
+cat backup.sql | docker compose exec -T postgresql psql -U postgres_user kdai
+```
+
+## Next Steps
+
+- [Backend Configuration](/components/backend/)
+- [Environment Variables](/installation/environment/)

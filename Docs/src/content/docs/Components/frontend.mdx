@@ -1,0 +1,371 @@
+---
+title: Frontend (Vue.js)
+description: Vue 3 SPA for debate viewing and management
+---
+
+Vue 3 + TypeScript frontend for parliamentary debate transcription and question management.
+
+## Technology Stack
+
+- **Framework**: Vue 3 with Composition API
+- **Language**: TypeScript
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS
+- **HTTP Client**: Axios
+- **Real-time**: Laravel Echo + Pusher.js
+- **Routing**: Vue Router 4
+- **UI Components**: Custom components with Tailwind
+- **Port**: 5173 (dev), 80 (production via nginx)
+
+## Application Structure
+
+### Core Views
+
+#### Debate Management (Dutch Routes)
+
+- `DebateOverview.vue` - `/debat` - List and filter debates
+- `DebateView.vue` - `/debat/inzien/:debateID` - Live debate viewing with real-time updates
+- `DebateCreate.vue` - `/debat/aanmaken` - Create new debates
+- `DebatePreparation.vue` - `/debat/voorbereiding/:debateID` - AI-generated preparation materials
+- `DebateFiles.vue` - `/debat/dossier/:debateID` - File upload and management
+- `DebateParticipants.vue` - `/debat/deelnemers` - User role management
+- `DebateQuestions.vue` - `/debat/vragen/:debateID` - Question viewing and editing
+- `DebateTranscript.vue` - `/debat/transcript/:debateID` - Live transcript with corrections
+- `DebateManagement.vue` - `/debat/beheer/:debateID` - Debate-specific management
+
+#### Department Management (Dutch Routes)
+
+- `DepartmentOverview.vue` - `/ministerie` - List departments
+- `DepartmentView.vue` - `/ministerie/inzien/:departmentID` - Department details
+- `DepartmentCreate.vue` - `/ministerie/aanmaken` - Create department
+- `DepartmentManagement.vue` - `/ministerie/beheer/:departmentID` - Department management
+- `DepartmentUsers.vue` - `/ministerie/gebruikers/:departmentID` - Department users
+- `DepartmentCreateUser.vue` - `/ministerie/gebruikers/aanmaken/:departmentID` - Create department
+  user
+
+#### Room Management (Dutch Routes)
+
+- `RoomOverview.vue` - `/zaal` - List rooms
+- `RoomView.vue` - `/zaal/inzien/:roomID` - Room details
+- `RoomCreate.vue` - `/zaal/aanmaken` - Create room
+- `RoomManagement.vue` - `/zaal/beheer/:roomID` - Room management
+
+#### Administrative
+
+- `AppManagement.vue` - `/beheer` - System administration
+- `TranscriptCorrections.vue` - `/beheer/vervangingen` - Global correction rules
+
+#### User Interface
+
+- `Home.vue` - `/home` - Dashboard and navigation
+- `Login.vue` - `/login` - User authentication
+
+### Key Services
+
+#### API Services
+
+- `authService.ts` - Authentication and token management
+- `debateService.ts` - Debate CRUD operations
+- `debateQuestionService.ts` - Question management
+- `transcriptService.ts` - Transcript operations
+- `userService.ts` - User management
+- `departmentService.ts` - Department operations
+- `roomService.ts` - Room management
+- `topicService.ts` - Topic management
+
+#### Real-time Services
+
+- Laravel Echo integration for WebSocket events
+- Real-time transcript updates
+- Live question extraction notifications
+- Transcript correction broadcasts
+
+### State Management
+
+#### Local State
+
+- Vue 3 Composition API with `ref()` and `reactive()`
+- Component-level state management
+- Props and emits for parent-child communication
+
+#### Authentication State
+
+- JWT token storage in localStorage
+- Axios interceptors for API authentication
+- Automatic token refresh
+
+### State Management
+
+#### TanStack DB Collections
+
+The frontend uses **TanStack DB** for local-first state management with automatic backend
+synchronization. Collections provide reactive, type-safe data access with optimistic updates.
+
+**Architecture:**
+
+- Collections use dedicated `QueryClient` (distinct from VueQueryPlugin)
+- 9 Active Collections: Debates, questions, segments, departments, rooms, topics, parties, users,
+  files
+- Hybrid sync: API mutations + WebSocket real-time updates
+- Optimistic updates with automatic rollback on errors
+
+**Core Collections:**
+
+```typescript
+// src/db/schema.ts
+import { createCollection } from '@tanstack/db';
+import { queryCollectionOptions } from '@tanstack/query-db-collection';
+
+// Question collection with full CRUD
+export const debateQuestionsCollection = createCollection(
+  queryCollectionOptions({
+    queryKey: ['debate-questions'],
+    queryFn: async () => [], // Populated per-debate
+    queryClient,
+    getKey: (item: DebateQuestion) => item.id,
+
+    // Persistence handlers for client mutations
+    onUpdate: async ({ transaction }) => {
+      for (const update of transaction.mutations) {
+        await debateQuestionService.updateQuestion(update.key as string, update.modified);
+      }
+      return { refetch: false }; // WebSocket handles sync
+    },
+  })
+);
+```
+
+**Usage Pattern:**
+
+```typescript
+// 1. Reactive queries with useLiveQuery
+const questionsQuery = useLiveQuery(
+  q =>
+    q
+      .from({ questions: debateQuestionsCollection })
+      .where(({ questions }) => eq(questions.debate_id, debateId.value)),
+  [debateId] // Dependency array
+);
+
+// 2. Optimistic mutations
+debateQuestionsCollection.update(questionId, draft => {
+  draft.text = newText; // UI updates immediately
+});
+
+// 3. Real-time sync setup
+useDebateQuestionsSync(debateId); // WebSocket sync composable
+```
+
+**Sync Composables:**
+
+- `useDebateQuestionsSync(debateId)` - Real-time question updates
+- `useTranscriptSegmentsSync(debateId)` - Live transcript segments
+- Collections initialized before WebSocket setup to prevent race conditions
+
+**Characteristics:**
+
+- Optimistic updates: UI reflects changes immediately with automatic rollback on failure
+- Offline-first: Collections work offline and sync when reconnected
+- Type safety: End-to-end TypeScript with schema validation
+- Multi-client sync: WebSocket broadcasts keep all browsers synchronized
+
+## Real-time Features
+
+### WebSocket Integration
+
+```typescript
+// Laravel Echo setup for Reverb connection
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
+
+window.Echo = new Echo({
+  broadcaster: 'reverb',
+  key: import.meta.env.VITE_REVERB_APP_KEY,
+  wsHost: location.hostname,
+  wsPort: 8001,
+  wsPath: import.meta.env.VITE_WS_PATH || '/app',
+  forceTLS: location.protocol.startsWith('https'),
+  auth: {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  },
+});
+```
+
+**Critical**: `wsPath` must match the backend's `REVERB_PATH`. Without it, the client falls back to
+Pusher's cloud service instead of your local Reverb server.
+
+### Channel Subscriptions
+
+```typescript
+// Private debate channel
+window.Echo.private(`debate.${debateId}`)
+  .listen('transcript.created', event => {
+    // Handle new transcript segment
+  })
+  .listen('question.extracted', event => {
+    // Handle extracted questions
+  })
+  .listen('transcript.updated', event => {
+    // Handle transcript corrections
+  });
+```
+
+## Key Components
+
+### Debate Components
+
+- `TranscriptSegment.vue` - Individual transcript segment with editing
+- `QuestionCard.vue` - Question display with metadata
+- `TopicTag.vue` - Topic categorization
+- `FileUpload.vue` - Drag-and-drop file upload
+- `ParticipantList.vue` - Debate participant management
+
+### UI Components
+
+- `LoadingSpinner.vue` - Loading states
+- `Modal.vue` - Reusable modal dialogs
+- `Pagination.vue` - List pagination
+- `SearchFilter.vue` - Search and filtering interface
+
+## Routing Structure
+
+The application uses Dutch language routes for all features:
+
+```typescript
+const routes = [
+  { path: '/login', component: Login },
+  {
+    path: '/',
+    meta: { requiresAuth: true },
+    children: [
+      { path: 'home', component: Home },
+      // Debate routes
+      { path: 'debat', component: DebateOverview },
+      { path: 'debat/aanmaken', component: DebateCreate },
+      { path: 'debat/inzien/:debateID', component: DebateView },
+      { path: 'debat/transcript/:debateID', component: DebateTranscript },
+      { path: 'debat/vragen/:debateID', component: DebateQuestions },
+      { path: 'debat/voorbereiding/:debateID', component: DebatePreparation },
+      { path: 'debat/dossier/:debateID', component: DebateFiles },
+      { path: 'debat/deelnemers', component: DebateParticipants },
+      { path: 'debat/beheer/:debateID', component: DebateManagement },
+      // Department routes
+      { path: 'ministerie', component: DepartmentOverview },
+      { path: 'ministerie/aanmaken', component: DepartmentCreate },
+      { path: 'ministerie/inzien/:departmentID', component: DepartmentView },
+      { path: 'ministerie/beheer/:departmentID', component: DepartmentManagement },
+      { path: 'ministerie/gebruikers/:departmentID', component: DepartmentUsers },
+      { path: 'ministerie/gebruikers/aanmaken/:departmentID', component: DepartmentCreateUser },
+      // Room routes
+      { path: 'zaal', component: RoomOverview },
+      { path: 'zaal/aanmaken', component: RoomCreate },
+      { path: 'zaal/inzien/:roomID', component: RoomView },
+      { path: 'zaal/beheer/:roomID', component: RoomManagement },
+      // Management routes
+      { path: 'beheer', component: AppManagement },
+      { path: 'beheer/vervangingen', component: TranscriptCorrections },
+    ],
+  },
+];
+```
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# Backend API
+VITE_API_BASE_URL=http://localhost:8001
+
+# WebSocket (Laravel Reverb)
+VITE_REVERB_APP_KEY=kdai-app-key-123
+VITE_REVERB_HOST=localhost
+VITE_REVERB_PORT=8001
+VITE_WS_PATH=/app
+```
+
+**Note**: In production, Nginx proxies both API and WebSocket traffic through port 8001. Reverb
+itself runs on port 8081.
+
+### Build Configuration
+
+```typescript
+// vite.config.ts
+export default defineConfig({
+  plugins: [vue()],
+  resolve: {
+    alias: {
+      '@': '/src',
+    },
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8001',
+        changeOrigin: true,
+      },
+    },
+  },
+});
+```
+
+**Note**: During local development with `npm run dev`, Vite's dev server proxies API requests to the
+backend nginx on port 8001. In production, the frontend is built and served through the same nginx
+instance.
+
+## Development Workflow
+
+### Local Development
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run lint         # TypeScript linting
+```
+
+### Code Organization
+
+- **Components**: Reusable Vue components
+- **Views**: Page-level components
+- **Services**: API communication logic
+- **Types**: TypeScript type definitions
+- **Utils**: Helper functions and formatters
+
+## Styling Approach
+
+### Tailwind CSS Configuration
+
+- Utility-first CSS approach
+- Custom design tokens for consistency
+- Responsive design patterns
+- Dark mode support
+
+### Component Styling
+
+- Scoped styles with Tailwind utilities
+- Consistent spacing and typography
+- Accessible color contrasts
+- Mobile-first responsive design
+
+## Performance Optimizations
+
+### Code Splitting
+
+- Route-based code splitting
+- Lazy loading for large components
+- Dynamic imports for third-party libraries
+
+### Bundle Optimization
+
+- Tree shaking for unused code
+- Asset optimization in build
+- Service worker for caching
+
+### Real-time Performance
+
+- WebSocket reconnection with exponential backoff
+- Debounced API calls
+- Optimized re-rendering with Vue 3

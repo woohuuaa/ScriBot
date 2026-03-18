@@ -1,0 +1,262 @@
+---
+title: FR-004 - Transcript Management
+description: Provide comprehensive transcript editing and management capabilities
+---
+
+## Overview
+
+Transcript Management provides comprehensive tools for editing, managing, and organizing
+parliamentary debate transcripts, ensuring accurate records, easy access to historical proceedings,
+and supporting collaborative review workflows for transcript quality assurance.
+
+## Actors
+
+- **Transcript Editor**: Reviews and corrects AI-generated transcripts for accuracy
+- **Department Coordinator**: Approves transcript segments relevant to ministry questions
+- **Department Staff**: Searches transcripts to identify questions and topics relevant to their
+  ministry
+- **Information Manager**: Manages transcript organization and access
+- **System Administrator**: Configures access permissions and export settings
+- **Multiple Editors**: Collaborate on reviewing and correcting transcripts
+
+## Use Cases
+
+### UC-001: Correct Real-time Transcription Errors
+
+**Actor**: Transcript Editor  
+**Description**: Review AI-generated transcript segments during or after a debate, correcting
+transcription errors, speaker misattributions, and formatting issues to ensure accurate record for
+ministry response preparation.
+
+### UC-002: Search Transcripts for Ministry-Relevant Questions
+
+**Actor**: Department Staff  
+**Description**: Search debate transcripts by speaker, date, topic, or keywords to locate questions
+and discussions relevant to their ministry for response preparation and tracking.
+
+### UC-003: Export Transcript Excerpts for Briefings
+
+**Actor**: Department Coordinator  
+**Description**: Export relevant transcript segments in various formats (PDF, Word, HTML) for
+inclusion in ministry briefings, dossiers, or response documentation.
+
+### UC-004: Collaborative Transcript Review
+
+**Actor**: Multiple Editors  
+**Description**: Multiple editors work simultaneously on different sections of a transcript,
+reviewing and correcting content with automatic conflict resolution and change tracking to ensure
+efficient quality assurance.
+
+## Scenarios
+
+### Scenario 1: Post-Debate Transcript Correction and Approval
+
+**Preconditions**:
+
+- Debate has concluded and full transcript is available
+- AI transcription has been completed with typical error rate
+- Transcript editor is assigned to review specific debate
+- Department coordinator must approve segments for ministry use
+
+**Steps**:
+
+1. Editor opens debate transcript in review interface
+2. System displays complete transcript with AI confidence indicators
+3. Editor identifies segment with low confidence score (speaker misattribution)
+4. Editor clicks segment to enter edit mode
+5. Editor corrects speaker label from "Unknown" to "Minister van Financiën"
+6. System saves correction with optimistic update to UI
+7. WebSocket broadcasts update to other viewers
+8. Editor continues reviewing and correcting additional segments
+9. Editor marks transcript section as "Reviewed"
+10. Department coordinator receives notification that section is ready for approval
+11. Coordinator reviews corrections and approves section for ministry use
+12. System marks section as "Approved" and makes available for dossier building
+13. Approved transcript segment can be included in ministry briefings
+
+**Postconditions**:
+
+- Transcript corrections are saved with full audit trail
+- Speaker attributions are accurate
+- Section is approved and ready for ministry use
+- Other users see updated, approved transcript
+
+### Scenario 2: Searching for Ministry-Relevant Questions
+
+**Preconditions**:
+
+- Transcript archive exists spanning recent debates
+- Department staff needs to find all questions relevant to their ministry
+- Full-text search indexing is up to date
+- Advanced search filters are available
+
+**Steps**:
+
+1. Department staff member navigates to transcript search interface
+2. Staff enters search query: "klimaatbeleid budget" (climate policy budget)
+3. System performs full-text search across all transcripts
+4. Results display 47 matches across 23 debates
+5. Staff applies date filter: "Last 12 months"
+6. Results narrow to 15 matches across 8 debates
+7. Staff applies ministry filter: "Ministry of Climate"
+8. Results narrow to 6 relevant segments with questions for their ministry
+9. Staff clicks result to view full context of question
+10. System displays transcript segment with highlighted search terms
+11. Staff exports search results with context for briefing preparation
+12. Staff saves search query for ongoing monitoring
+
+**Postconditions**:
+
+- Staff has located all relevant ministry questions
+- Search results are exported for response preparation
+- Saved search can monitor new debates for similar questions
+- Ministry briefing is supported by comprehensive context
+
+### Scenario 3: Multi-Editor Collaborative Review of Lengthy Debate
+
+**Preconditions**:
+
+- Complex debate transcript is 200+ minutes long
+- Three editors are assigned to review different time sections
+- Real-time collaboration features are enabled
+- System supports conflict resolution
+
+**Steps**:
+
+1. Editor A begins reviewing minutes 0-60 of transcript
+2. System displays Editor A's presence indicator to other users
+3. Editor B begins reviewing minutes 61-120 simultaneously
+4. Both editors make corrections in their respective sections
+5. Editor A corrects speaker label in minute 35
+6. Editor B sees real-time update notification for Editor A's change
+7. Editor C joins and begins reviewing minutes 121-200
+8. All three editors work concurrently without conflicts
+9. Editor A accidentally navigates to minute 65 (Editor B's section)
+10. System shows "Editor B is currently editing this section" warning
+11. Editor A returns to assigned section to avoid conflicts
+12. All editors complete their sections and mark as reviewed
+13. Senior clerk reviews all three sections together
+14. System merges all corrections into final approved transcript
+
+**Postconditions**:
+
+- Entire transcript reviewed efficiently by parallel editors
+- No edit conflicts occurred due to presence awareness
+- All corrections are properly attributed to specific editors
+- Collaborative effort reduced review time significantly
+
+## Business Value
+
+### Primary Benefits
+
+- **Accuracy**: Ensures parliamentary records are accurate and reliable
+- **Efficiency**: Reduces manual correction time through AI assistance
+- **Accessibility**: Enables easy search and retrieval of historical debates
+- **Collaboration**: Supports efficient multi-user review workflows
+- **Transparency**: Provides complete audit trail of all transcript changes
+
+### Impact
+
+- Reduces transcript finalization time from days to hours
+- Enables real-time corrections during ongoing debates
+- Supports historical research and policy analysis
+- Ensures official records meet quality and accuracy standards
+
+## Priority
+
+**MoSCoW Classification**: **Must Have**
+
+Essential for ensuring quality and accuracy of parliamentary records. Without effective transcript
+management, the system cannot produce reliable official documentation.
+
+## Implementation Status
+
+**Status**: Implemented  
+**Version**: 1.0  
+**Last Updated**: 2024-Q4
+
+### Key Milestones
+
+- ✅ TanStack DB segments collection with real-time sync
+- ✅ WebSocket-based collaborative editing
+- ✅ Optimistic updates with automatic rollback
+- ✅ Full-text search across transcripts
+- ✅ Multiple export formats
+- ✅ Change tracking and audit trail
+
+## Dependencies
+
+### Upstream Dependencies
+
+- [FR-002: Live Transcription](./fr-002-live-transcription) - Generates initial transcript data
+- [FR-005: User Management](./fr-005-user-management) - Authentication and permissions
+
+### Downstream Dependencies
+
+- [FR-010: Dossier Building](./fr-010-dossier-building) - Includes transcript excerpts in dossiers
+- [FR-009: Real-time Multi-User Working](./fr-009-realtime-multi-user-working) - Collaborative
+  editing
+
+### External Dependencies
+
+- WebSocket infrastructure (Laravel Reverb/Echo)
+- Database with full-text search capabilities
+- Document export libraries (PDF, Word generation)
+
+## Technical Overview
+
+### High-Level Architecture
+
+The transcript management system combines real-time collaboration with comprehensive editing tools:
+
+**Frontend Collection**: TanStack DB `segmentsCollection` provides reactive state management for
+transcript segments. Supports optimistic updates, automatic conflict resolution, and offline
+operation with synchronization when reconnected.
+
+**Real-time Synchronization**: WebSocket events broadcast transcript additions and corrections to
+all connected clients immediately. Presence indicators show which users are editing which sections
+to prevent conflicts.
+
+**Editing Pipeline**: User edits trigger optimistic UI updates for immediate feedback, followed by
+API persistence. Successful saves trigger WebSocket broadcasts to other clients. Failed saves
+automatically revert to original state.
+
+**Version Control**: Complete audit trail tracks all changes with timestamp, user attribution, and
+change details. Supports version comparison and rollback if needed.
+
+**Search System**: Full-text indexing enables fast search across all transcript content. Supports
+metadata filters (speaker, date, topic) and semantic search capabilities.
+
+**Export Engine**: Generates transcripts in multiple formats (PDF, Word, HTML, JSON) with
+customizable formatting, speaker labels, timestamps, and metadata inclusion.
+
+### Data Flow
+
+```
+AI Transcription → Database → WebSocket Event → Frontend Collection
+    → UI Display → User Edit → Optimistic Update → API Call
+    → Validation → Database Update → WebSocket Broadcast
+    → Other Clients Sync → Consistent State
+```
+
+### Key Design Principles
+
+- **Collaborative First**: Built for simultaneous multi-user editing
+- **Optimistic UI**: Immediate feedback with automatic error recovery
+- **Audit Everything**: Complete history of all changes
+- **Flexible Export**: Support diverse output formats and use cases
+- **Search-Optimized**: Fast retrieval of relevant content
+
+## Related Documentation
+
+- **Backend Controllers**: `/KDAI-backend/app/Http/Controllers/TranscriptController.php`
+- **Backend Models**: `/KDAI-backend/app/Models/Transcript.php`
+- **Backend Events**: `/KDAI-backend/app/Events/TranscriptAddedEvent.php`
+- **Frontend Collection**: `/KDAI-frontend/src/db/schema.ts` (segmentsCollection)
+- **Frontend Composables**: `/KDAI-frontend/src/composables/useTranscriptSegmentsSync.ts`
+- **Export Services**: `/KDAI-backend/app/Services/TranscriptExportService.php`
+
+---
+
+**Document Version**: 2.0  
+**Last Reviewed**: 2025-11-11

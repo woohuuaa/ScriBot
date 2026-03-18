@@ -1,0 +1,549 @@
+---
+title: Database Model Design
+description: Database schema and design principles for KDAI system
+---
+
+import { MermaidChart } from '../../../components/MermaidChart';
+
+## Design Principles
+
+### UUID Primary Keys
+
+All entities use UUID primary keys for distributed system compatibility and security.
+
+### Soft Deletes
+
+Critical data uses soft deletes via Laravel's `SoftDeletes` trait to preserve historical
+information.
+
+### User Tracking
+
+Content modifications track user responsibility through `created_by` and `updated_by` fields.
+
+## Entity Relationship Diagram
+
+### Complete Entity Relationship Diagram
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`erDiagram
+    departments ||--o{ users : "has"
+    departments ||--o{ topics : "creates"
+    departments ||--o{ department_roles : "defines"
+    departments }o--o{ debates : "participates in"
+    
+    rooms ||--o{ debates : "hosts"
+    
+    users ||--o{ topics : "creates"
+    users ||--o{ segments : "creates/updates"
+    users ||--o{ transcript_corrections : "manages"
+    users ||--o{ debate_files : "uploads"
+    users }o--o{ debates : "participates in"
+    
+    roles ||--o{ debate_user_roles : "assigned via"
+    department_roles ||--o{ debate_user_roles : "assigned via"
+    
+    debates ||--o{ segments : "contains"
+    debates ||--o{ debate_questions : "generates"
+    debates ||--o{ debate_files : "contains"
+    debates }o--o{ topics : "covers"
+    
+    topics ||--o{ debate_questions : "categorizes"
+    
+    segments ||--o{ debate_questions : "references"
+`}
+/>
+
+## Core Entities
+
+### Departments
+
+Organizational departments that users belong to and create topics for.
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `name` (VARCHAR 256) - Department name
+- `short_name` (VARCHAR 20) - Abbreviation
+- `is_deleted` (BOOLEAN) - Legacy delete flag
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+### Rooms
+
+Physical or virtual rooms where debates take place.
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `name` (VARCHAR 256) - Room name
+- `normalized_name` (VARCHAR 256) - Normalized for search
+- `is_deleted` (BOOLEAN) - Legacy delete flag
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+### Users
+
+System users with departmental assignments and authentication.
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `name` (VARCHAR 256) - Full name
+- `email` (VARCHAR 256) - Unique email address
+- `password` (VARCHAR 256) - Hashed password
+- `department_id` (UUID) - Foreign key to departments
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+### Roles
+
+System-wide roles for debate participation (e.g., Speaker, Commissioner).
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `name` (VARCHAR 256) - Role name
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+### Department Roles
+
+Department-specific roles with custom naming.
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `name` (VARCHAR 256) - Role name
+- `department_id` (UUID) - Foreign key to departments
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+### Rooms
+
+```sql
+CREATE TABLE rooms (
+    id UUID PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    normalized_name VARCHAR(256),
+    is_deleted BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP NULL -- Soft delete
+);
+```
+
+### Roles
+
+```sql
+CREATE TABLE roles (
+    id UUID PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP NULL -- Soft delete
+);
+```
+
+### Department Roles
+
+```sql
+CREATE TABLE department_roles (
+    id UUID PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    department_id UUID NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP NULL, -- Soft delete
+
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE
+);
+```
+
+### Rooms
+
+```sql
+CREATE TABLE rooms (
+    id UUID PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    normalized_name VARCHAR(256),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+```
+
+### Users
+
+```sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    email VARCHAR(256) UNIQUE NOT NULL,
+    email_verified_at TIMESTAMP NULL,
+    password VARCHAR(256) NOT NULL,
+    department_id UUID NOT NULL,
+    remember_token VARCHAR(100) NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP NULL, -- Soft delete
+
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE
+);
+```
+
+### Roles
+
+```sql
+CREATE TABLE roles (
+    id UUID PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP NULL -- Soft delete
+);
+```
+
+### Department Roles
+
+```sql
+CREATE TABLE department_roles (
+    id UUID PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    department_id UUID NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP NULL, -- Soft delete
+
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE
+);
+```
+
+## Debate Management
+
+### Debate Management Relationships
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`erDiagram
+    debates ||--o{ debate_user_roles : "has participants"
+    debates ||--o{ debate_departments : "involves departments"
+    debates }o--|| rooms : "held in"
+    
+    debate_user_roles ||--o{ users : "assigns users"
+    debate_user_roles ||--o{ roles : "with roles"
+    debate_user_roles ||--o{ department_roles : "or department roles"
+    
+    debate_departments ||--o{ departments : "participating"
+`}
+/>
+
+### Debates
+
+Main entity representing parliamentary debate sessions.
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `title` (VARCHAR 256) - Debate title
+- `description` (TEXT) - Detailed description
+- `date` (DATETIME) - Debate date and time
+- `room_id` (UUID) - Foreign key to rooms
+- `transcribe_status` (VARCHAR 50) - Transcription state
+- `status` (VARCHAR 50) - Overall debate state
+- `preparation` (TEXT) - AI-generated preparation
+- `preparation_questions` (JSON) - Preparation questions
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+**Constraints:**
+
+- Unique constraint on (date, room_id)
+- Foreign key to rooms with CASCADE delete
+
+### Debate User Roles (Pivot)
+
+Links users to debates with specific roles.
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `debate_id` (UUID) - Foreign key to debates
+- `user_id` (UUID) - Foreign key to users
+- `role` (VARCHAR 256) - Role name (string-based)
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+**Constraints:**
+
+- Foreign keys to debates and users with CASCADE delete
+
+### Debate Departments (Pivot)
+
+Links departments to debates for multi-department participation.
+
+**Key Fields:**
+
+- `debate_id` (UUID) - Foreign key to debates
+- `department_id` (UUID) - Foreign key to departments
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+**Constraints:**
+
+- Composite primary key on (debate_id, department_id)
+- Foreign keys with CASCADE delete
+
+## Content Management
+
+### Content Management Flow
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`erDiagram
+    topics ||--o{ debate_topics : "linked to"
+    topics ||--o{ debate_questions : "categorizes"
+    
+    debate_topics ||--o{ debates : "covers"
+    debate_questions ||--o{ debates : "from"
+    debate_questions ||--o{ segments : "references"
+    
+    topics }o--|| departments : "created by"
+    topics }o--o{ users : "created by"
+`}
+/>
+
+### Topics
+
+Categorization system for debate content and questions.
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `name` (VARCHAR 256) - Topic name
+- `department_id` (UUID) - Foreign key to departments
+- `created_by` (UUID) - Foreign key to users
+- `is_deleted` (BOOLEAN) - Legacy delete flag
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+**Constraints:**
+
+- Foreign key to departments with CASCADE delete
+- Foreign key to users with SET NULL delete
+- Index on (department_id, is_deleted)
+
+### Debate Topics (Pivot)
+
+Links topics to debates for categorization.
+
+**Key Fields:**
+
+- `debate_id` (UUID) - Foreign key to debates
+- `topic_id` (UUID) - Foreign key to topics
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+**Constraints:**
+
+- Composite primary key on (debate_id, topic_id)
+- Foreign keys with CASCADE delete
+
+### Debate Questions
+
+Questions extracted from debate transcripts with metadata.
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `debate_id` (UUID) - Foreign key to debates
+- `text` (VARCHAR 2048) - Question text
+- `question_number` (unsignedInteger) - Sequential number
+- `segment_id` (VARCHAR 256) - Reference to transcript segment
+- `topic_id` (UUID) - Foreign key to topics
+- `party` (VARCHAR 256) - Political party
+- `commissioner` (VARCHAR 256) - Question commissioner
+- `assigned_to` (VARCHAR 256) - Assigned person
+- `timestamp_ms` (bigInteger) - Timestamp in milliseconds
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+**Constraints:**
+
+- Foreign key to debates with CASCADE delete
+- Foreign key to topics with SET NULL delete
+- Index on (debate_id, question_number)
+
+### Debate Topics (Pivot)
+
+```sql
+CREATE TABLE debate_topics (
+    debate_id UUID NOT NULL,
+    topic_id UUID NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+
+    PRIMARY KEY (debate_id, topic_id),
+    FOREIGN KEY (debate_id) REFERENCES debates(id) ON DELETE CASCADE,
+    FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE CASCADE
+);
+```
+
+### Debate Questions
+
+```sql
+CREATE TABLE debate_questions (
+    id UUID PRIMARY KEY,
+    debate_id UUID NOT NULL,
+    text VARCHAR(2048) NOT NULL,
+    question_number unsignedInteger NOT NULL,
+    segment_id VARCHAR(256) NULL,
+    topic_id UUID NULL,
+    party VARCHAR(256) NULL,
+    commissioner VARCHAR(256) NULL,
+    assigned_to VARCHAR(256) NULL,
+    timestamp_ms bigInteger NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP NULL, -- Soft delete
+
+    FOREIGN KEY (debate_id) REFERENCES debates(id) ON DELETE CASCADE,
+    FOREIGN KEY (topic_id) REFERENCES topics(id) ON DELETE SET NULL,
+    INDEX(debate_id, question_number)
+);
+```
+
+## Transcription System
+
+### Transcription Data Flow
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`erDiagram
+    debates ||--o{ segments : "contains"
+    debates ||--o{ debate_files : "stores files"
+    
+    segments ||--o{ debate_questions : "generates questions"
+    segments }o--o{ users : "created/updated by"
+    
+    transcript_corrections }o--o{ users : "managed by"
+    
+    debate_files }o--o{ users : "uploaded by"
+`}
+/>
+
+### Segments
+
+Individual transcript segments from real-time transcription.
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `debate_id` (UUID) - Foreign key to debates
+- `segment_id` (VARCHAR 256) - External segment identifier
+- `segment_timestamp` (DATETIME) - Segment timestamp
+- `timestamp_ms` (bigInteger) - Millisecond precision
+- `original_text` (TEXT) - AI-generated transcript
+- `manual_text` (TEXT) - User-corrected text
+- `is_checked` (BOOLEAN) - Verification status
+- `created_by` (UUID) - Foreign key to users
+- `updated_by` (UUID) - Foreign key to users
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+**Constraints:**
+
+- Unique constraint on (debate_id, segment_id)
+- Foreign keys with CASCADE/SET NULL delete
+- Indexes on segment_timestamp and timestamp_ms
+
+### Transcript Corrections
+
+Global correction rules for transcript processing.
+
+**Key Fields:**
+
+- `id` (BIGINT) - Auto-increment primary key
+- `value` (VARCHAR 255) - Text to find (lowercase)
+- `replacement` (VARCHAR 255) - Replacement text
+- `created_by` (UUID) - Foreign key to users
+- `updated_by` (UUID) - Foreign key to users
+- `deleted_at` (TIMESTAMP) - Soft delete timestamp
+
+**Constraints:**
+
+- Unique constraint on value
+- Foreign keys to users with SET NULL delete
+
+### Debate Files
+
+File attachments for debates (documents, media, etc.).
+
+**Key Fields:**
+
+- `id` (UUID) - Primary key
+- `debate_id` (UUID) - Foreign key to debates
+- `original_name` (VARCHAR 256) - Original filename
+- `file_path` (VARCHAR 512) - Storage path
+- `file_size` (BIGINT) - File size in bytes
+- `mime_type` (VARCHAR 100) - MIME type
+- `uploaded_by` (UUID) - Foreign key to users
+
+**Constraints:**
+
+- Foreign key to debates with CASCADE delete
+- Foreign key to users with SET NULL delete
+
+### Transcript Corrections
+
+```sql
+CREATE TABLE transcript_corrections (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    value VARCHAR(255) NOT NULL COMMENT 'Original text to find (stored lowercase)',
+    replacement VARCHAR(255) NOT NULL COMMENT 'Replacement text (case-sensitive)',
+    created_by UUID NULL,
+    updated_by UUID NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP NULL, -- Soft delete
+
+    UNIQUE(value),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+);
+```
+
+### Debate Files
+
+```sql
+CREATE TABLE debate_files (
+    id UUID PRIMARY KEY,
+    debate_id UUID NOT NULL,
+    original_name VARCHAR(256) NOT NULL,
+    file_path VARCHAR(256) NOT NULL,
+    mime_type VARCHAR(256) NOT NULL,
+    file_size BIGINT UNSIGNED NOT NULL,
+    uploaded_by UUID NOT NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+
+    FOREIGN KEY (debate_id) REFERENCES debates(id) ON DELETE CASCADE,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX(debate_id, uploaded_by)
+);
+```
+
+## Key Relationships Summary
+
+| Entity                     | Related To   | Relationship Type                           | Description |
+| -------------------------- | ------------ | ------------------------------------------- | ----------- |
+| **Users** → Departments    | Many-to-One  | Users belong to one department              |
+| **Debates** → Rooms        | Many-to-One  | Many debates occur in one room              |
+| **Debates** ↔ Users       | Many-to-Many | Via `debate_user_roles` with roles          |
+| **Debates** ↔ Departments | Many-to-Many | Via `debate_departments`                    |
+| **Debates** → Segments     | One-to-Many  | One debate has many transcript segments     |
+| **Segments** → Questions   | One-to-Many  | Questions reference specific segments       |
+| **Topics** ↔ Debates      | Many-to-Many | Categorization via `debate_topics`          |
+| **Users** → Topics         | One-to-Many  | Users create topics within their department |
+
+## Indexing Strategy
+
+- **Composite Indexes**: `(debate_id, segment_id)`, `(debate_id, question_number)`
+- **Foreign Key Indexes**: Automatic on all foreign key columns
+- **Performance Indexes**: `timestamp_ms` for time-based queries
+- **Unique Constraints**: Prevent duplicate data and ensure data integrity
+
+## Data Flow Patterns
+
+1. **Debate Creation**: Department users create debates in specific rooms
+2. **Participant Assignment**: Users assigned roles via `debate_user_roles`
+3. **Transcription**: Audio segments stored with edit tracking
+4. **Question Extraction**: AI questions linked to topics and segments
+5. **Corrections**: Global rules improve transcript quality

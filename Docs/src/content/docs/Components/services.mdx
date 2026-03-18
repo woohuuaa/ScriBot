@@ -1,0 +1,443 @@
+---
+title: Services (ATTS)
+description: Audio transcription and question extraction microservices
+---
+
+import { MermaidChart } from '../../../components/MermaidChart';
+
+ATTS (Audio To Text Services) provides real-time transcription using WhisperLive. CSP streams audio
+from M3U8 sources to WhisperLive via WebSocket.
+
+## Architecture Overview
+
+ATTS uses a streaming architecture for real-time transcription:
+
+### ATTS Real-time Streaming Architecture
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`graph TB
+    Stream[M3U8 Stream] -->|HLS Audio| CSP[kdai-atts-csp]
+    Backend[kdai-backend Laravel] -->|Redis Commands| CSP
+    CSP -->|WebSocket Audio Stream| Whisper[WhisperLive Server]
+    Whisper -->|Real-time Transcription| CSP
+    CSP -->|Redis Queue| Backend
+    Backend -->|Reverb WebSocket| Frontend[Frontend Clients]
+    
+    classDef backend fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef service fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef ai fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef external fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    
+    class Backend,Frontend backend
+    class CSP service
+    class Whisper ai
+    class Stream external
+`}
+/>
+
+## Core Services
+
+### kdai-atts-csp (Continuous Stream Processor)
+
+**Port**: 7010  
+**Purpose**: Real-time M3U8 stream transcription using WhisperLive with direct audio streaming
+
+#### Key Features
+
+- **Audio Streaming**: Streams M3U8 audio to WhisperLive
+- **FFmpeg Integration**: Extracts and converts audio in real-time (16kHz mono float32)
+- **Segment Buffering**: Buffers and processes transcription segments from WhisperLive
+- **Duplicate Detection**: Fuzzy matching (85% similarity threshold) prevents duplicates
+- **WebSocket Communication with WhisperLive**:
+  - Sends audio stream to WhisperLive
+  - Receives transcription segments from WhisperLive
+- **Redis Queue Communication with Backend**:
+  - Sends processed transcripts to `ts_segment_complete` queue
+  - Receives start/stop commands from `csp_queue`
+
+#### Technology Stack
+
+- Python 3.11+
+- FFmpeg for audio extraction and streaming
+- WhisperLive WebSocket client
+- Redis client for queue-based backend communication
+
+### Audio Processing Pipeline
+
+CSP transforms M3U8 audio streams for WhisperLive compatibility:
+
+```
+M3U8 Stream → FFmpeg → 16kHz Float32 → WhisperLive → CSP Buffer → Redis → Backend
+```
+
+**FFmpeg Command Pattern:**
+
+```bash
+ffmpeg -i {m3u8_url} -ar 16000 -ac 1 -f f32le -acodec pcm_f32le pipe:1
+```
+
+#### Configuration
+
+```bash
+# WhisperLive Connection
+WHISPERLIVE_HOST=kdai-whisperlive
+WHISPERLIVE_PORT=9090
+
+# Redis for Commands
+REDIS_URL=redis://redis:6379
+
+# Audio Configuration
+AUDIO_SAMPLE_RATE=16000
+AUDIO_CHANNELS=1
+AUDIO_FORMAT=f32le
+
+# Buffer Settings
+SIMILARITY_THRESHOLD=0.85
+```
+
+### WhisperLive Server
+
+**Port**: 9090  
+**Purpose**: Real-time speech recognition using OpenAI Whisper
+
+#### Features
+
+- **Real-time Audio Transcription**: Processes audio streams as they arrive
+- **Voice Activity Detection (VAD)**: Intelligently detects speech segments
+- **Multiple Language Support**: Optimized for Dutch with multi-language capability
+- **Segment Corrections**: Refines transcriptions as more context is available
+- **WebSocket Interface**: Bidirectional streaming with CSP
+- **GPU Acceleration**: Uses CUDA for fast inference when available
+
+#### Session Configuration
+
+WhisperLive sessions are configured by CSP at connection time:
+
+```json
+{
+  "uid": "unique-session-id",
+  "language": "nl",
+  "task": "transcribe",
+  "model": "turbo",
+  "use_vad": true
+}
+```
+
+### kdai-m3u8-emulator (Development Only)
+
+**Port**: 6969 (external), 2121 (internal)  
+**Purpose**: Simulates parliamentary M3U8 streams for development
+
+#### Features
+
+- HLS stream generation for testing
+- Audio file streaming
+- Development environment simulation
+
+## Real-time Transcription Flow
+
+<MermaidChart client:only="react" chartDefinition={`sequenceDiagram
+    participant Stream as M3U8 Stream
+    participant Backend as kdai-backend
+    participant Redis
+    participant CSP as kdai-atts-csp
+    participant WhisperLive
+    participant User as Frontend
+
+    Backend->>Redis: Start capture command
+    Redis->>CSP: Process stream request
+    CSP->>Stream: Connect FFmpeg to M3U8
+    CSP->>WhisperLive: Connect WebSocket + send config
+    WhisperLive->>CSP: Connection established
+
+    loop Real-time Streaming
+        Stream->>CSP: HLS audio chunks
+        CSP->>CSP: Convert to 16kHz float32
+        CSP->>WhisperLive: Stream audio via WebSocket
+        WhisperLive->>CSP: Transcription segments
+        CSP->>CSP: Buffer & deduplicate segments
+        CSP->>Redis: Push to ts_segment_complete queue
+        Backend->>Redis: Pull from queue
+        Backend->>Backend: Filter & process
+        Backend->>User: Reverb WebSocket update
+    end
+
+    Backend->>Redis: Stop capture command
+    Redis->>CSP: Stop processing
+    CSP->>WhisperLive: Close WebSocket
+    CSP->>Stream: Stop FFmpeg
+
+`} />
+
+### Segment Buffering System
+
+The CSP implements segment buffering to process transcription segments from WhisperLive:
+
+- **Completed Segments**: Sends segments marked as `completed=True` by WhisperLive
+- **Duplicate Prevention**: Fuzzy matching (85% similarity) prevents duplicate segments
+- **Correction Handling**: Processes WhisperLive segment corrections (both pre-send and post-send)
+- **Short Sentence Merging**: Merges sentences shorter than 15 characters with next segment
+- **Time-based Segmentation**: Generates segment IDs based on elapsed time (HH_MM_SS_mmm)
+
+#### Buffer Configuration
+
+```python
+SegmentBuffer(
+    similarity_threshold=0.85,  # Fuzzy matching for duplicate detection
+    short_sentence_threshold=15,  # Merge sentences shorter than this
+    segments_to_wait_for_corrections=1  # Wait N segments for corrections
+)
+```
+
+#### Segment ID Format
+
+Segment IDs represent elapsed time since transcription started:
+
+```
+Format: HH_MM_SS_mmm
+Example: 00_05_23_456 (5 minutes, 23 seconds, 456 milliseconds)
+```
+
+### Correction Detection
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`graph TB
+    subgraph "Input Processing"
+        Segment[Audio Segment] --> Buffer[Segment Buffer]
+        Correction[Correction Update] --> Buffer
+    end
+    
+    subgraph "Buffer Management"
+        Buffer --> Pending[Pending Queue]
+        Buffer --> Corrections[Corrections Queue]
+        
+        Pending -->|Sequence 1,2,3| Send[Send to Backend]
+        Corrections -->|Reuse sequence| Send
+    end
+    
+    subgraph "Backend Processing"
+        Send --> RedisQueue[Redis Queue]
+        RedisQueue --> BackendWorker[Backend Queue Worker]
+        BackendWorker --> User[Frontend Updates via Reverb]
+    end
+    
+    classDef input fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef buffer fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef output fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    
+    class Segment,Correction input
+    class Buffer,Pending,Corrections buffer
+    class Send,BackendWS,User output
+`}
+/>
+
+#### Pre-send Corrections
+
+- Updates pending items in-place
+- Resets wait counter for refinement
+- Maintains sequence order
+
+#### Post-send Corrections
+
+- Separate corrections queue
+- Reuses original sequence numbers
+- Independent processing without ordering constraints
+
+## Communication Protocols
+
+### Redis Queue Messages
+
+#### Start Capture
+
+```json
+{
+  "debate_id": "uuid",
+  "m3u8_stream": "https://example.com/stream.m3u8",
+  "action": "start_capture"
+}
+```
+
+#### Stop Capture
+
+```json
+{
+  "debate_id": "uuid",
+  "action": "stop_capture"
+}
+```
+
+### Redis Queue Messages (CSP → Backend)
+
+**Queue Name**: `ts_segment_complete`
+
+#### Transcript Segment
+
+```json
+{
+  "debate_id": "uuid",
+  "segment_id": "00_05_23_456",
+  "transcript_content": "Completed transcription segment text...",
+  "is_realtime": true
+}
+```
+
+**Note**: CSP sends segments marked as `completed=True` by WhisperLive. The backend performs
+additional validation and filtering before storage.
+
+## Performance Characteristics
+
+### Processing Pipeline
+
+- Segments sent immediately when marked `completed=True` by WhisperLive
+- Optional 1-segment wait for corrections (configurable)
+- Correction processing: immediate for pre-send, asynchronous for post-send
+
+### System Characteristics
+
+- Single stream per CSP instance
+- Continuous processing pipeline
+- Lightweight in-memory buffering
+
+### Reliability
+
+- Automatic WebSocket reconnection (max 3 retries with 5-second fixed delay)
+- Redis queue ensures message persistence
+- Error reporting to backend via ts_segment_complete queue
+
+## Development vs Production
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`graph TB
+    subgraph "Production Environment"
+        PStream[Live Parliamentary Stream]
+        PWhisper[Production WhisperLive]
+        PCSP[kdai-atts-csp]
+    end
+    
+    subgraph "Development Environment"
+        DStream[M3U8 Emulator :6969]
+        DWhisper[Dev WhisperLive]
+        DCSP[kdai-atts-csp]
+    end
+    
+    PStream --> PCSP
+    PCSP --> PWhisper
+    
+    DStream --> DCSP
+    DCSP --> DWhisper
+    
+    classDef prod fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef dev fill:#fff3e0,stroke:#f57c00,stroke-width:2px,stroke-dasharray: 5 5
+    
+    class PStream,PWhisper,PCSP prod
+    class DStream,DWhisper,DCSP dev
+`}
+/>
+
+## Integration Points
+
+### Backend Integration
+
+- **Redis Queues (Backend → CSP)**: Start/stop capture control messages via `csp_queue`
+- **Redis Queues (CSP → Backend)**: Real-time transcript segment streaming via `ts_segment_complete`
+- **Laravel Reverb (Backend → Frontend)**: Broadcast transcripts to clients via WebSocket
+- **Database**: Persistent storage of processed transcripts
+
+### External Dependencies
+
+- **M3U8 Sources**: Live parliamentary streaming infrastructure (production)
+- **M3U8 Emulator**: Development streaming simulator (development only)
+- **WhisperLive Server**: Real-time speech recognition service
+- **FFmpeg**: Audio extraction and format conversion
+- **Redis**: Command messaging and service coordination
+
+## Monitoring and Debugging
+
+### Health Checks
+
+- `GET /health` - Service health status
+- Connection status to WhisperLive
+- Redis queue connectivity
+
+### Logging
+
+- Stream connection events
+- Transcription accuracy metrics
+- Error conditions and recovery
+- Performance timing data
+
+### Metrics
+
+- Transcription latency
+- Sentence completion rates
+- Correction frequency
+- Duplicate detection accuracy
+
+## Configuration Management
+
+### Environment Variables
+
+```bash
+# WhisperLive Configuration
+WHISPERLIVE_HOST=kdai-whisperlive
+WHISPERLIVE_PORT=9090
+
+# Redis Configuration
+REDIS_URL=redis://redis:6379
+REDIS_DB=0
+
+# Service Configuration
+CSP_PORT=7010
+LOG_LEVEL=INFO
+```
+
+**Note**: Buffer settings (`similarity_threshold`, `short_sentence_threshold`,
+`segments_to_wait_for_corrections`) are hardcoded in the SegmentBuffer class
+(segment_buffer.py:34-52).
+
+### Docker Configuration
+
+```yaml
+services:
+  kdai-atts-csp:
+    build: ./ATTS/CSP
+    ports:
+      - '7010:7010'
+    environment:
+      - WHISPERLIVE_HOST=kdai-whisperlive
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - kdai-whisperlive
+```
+
+## Future Enhancements
+
+### Scalability
+
+- Multi-stream processing capability
+- Load balancing across CSP instances
+- GPU resource optimization
+
+### Accuracy
+
+- Custom language model fine-tuning
+- Domain-specific vocabulary
+- Speaker diarization
+
+### Reliability
+
+- Stream failover mechanisms
+- Enhanced error recovery
+- Performance optimization
+
+### Additional Services (Planned)
+
+The current architecture is designed to support additional microservices in the future:
+
+- Question Extraction Service (QES) - Currently integrated in backend
+- Transcription Filtering Service (TFS) - Currently integrated in backend
+- Transcription Correction Service (TCS) - Currently integrated in backend

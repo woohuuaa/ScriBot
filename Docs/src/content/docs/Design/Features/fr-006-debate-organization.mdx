@@ -1,0 +1,263 @@
+---
+title: FR-006 - Debate Organization
+description: Organize debates by rooms, dates, departments, and topics
+---
+
+## Overview
+
+Debate Organization provides comprehensive tools for organizing parliamentary debates by multiple
+dimensions including rooms, dates, departments, and topics, enabling efficient navigation,
+management, and discovery of parliamentary proceedings across the organization.
+
+## Actors
+
+- **Information Manager**: Organizes and categorizes debates with comprehensive metadata
+- **Department Staff**: Searches debates relevant to their ministry
+- **Department Coordinator**: Views debates involving their ministry and tracks participation
+- **System Administrator**: Configures organizational taxonomy and structure
+- **Policy Officer**: Links related debate sessions and maintains relationships
+
+## Use Cases
+
+### UC-001: Categorize New Debate Session
+
+**Actor**: Information Manager  
+**Description**: Assign comprehensive metadata to newly created debate including room, date,
+participating ministries, primary topics, and related legislation to ensure proper organization and
+ministry staff can discover relevant debates.
+
+### UC-002: Search Debates by Ministry and Topic
+
+**Actor**: Department Staff  
+**Description**: Search and filter debates by topic area, ministry involvement, and time period to
+locate debates where questions were directed to their ministry.
+
+### UC-003: Track Ministry-Specific Debates
+
+**Actor**: Department Coordinator  
+**Description**: View all debates involving a specific ministry, filter by topic and date range, and
+monitor where the ministry was questioned or discussed in parliamentary proceedings.
+
+### UC-004: Link Related Debate Sessions
+
+**Actor**: Policy Officer  
+**Description**: Establish relationships between related debates such as follow-up sessions on the
+same topic or debates referencing common legislation to support contextual understanding for
+response preparation.
+
+## Scenarios
+
+### Scenario 1: Organizing Multi-Department Climate Policy Debate
+
+**Preconditions**:
+
+- New debate session has been created in system
+- Multiple ministries are involved in climate policy discussion
+- Topic taxonomy includes climate-related categories
+- Room and date information is available
+
+**Steps**:
+
+1. Information Manager opens new debate details page
+2. Manager assigns debate to "Main Chamber" room
+3. Manager sets date to current session date
+4. Manager begins assigning ministries involved
+5. Manager selects "Ministry of Climate and Energy" as primary ministry
+6. Manager adds "Ministry of Finance" as secondary ministry
+7. Manager adds "Ministry of Transport" as tertiary ministry
+8. Manager navigates to topic classification section
+9. Manager selects primary topic: "Climate Policy > Emissions Reduction"
+10. Manager adds secondary topic: "Budget > Climate Funding"
+11. Manager enters debate description and legislative context
+12. Manager links related legislation: "Climate Act 2024"
+13. System validates all required metadata is complete
+14. Manager saves debate organization metadata
+15. Debate appears in searches for all three ministries and both topics
+
+**Postconditions**:
+
+- Debate is properly categorized across multiple dimensions
+- Ministry staff can find debate through multiple search paths
+- Department coordinators can track their ministry's involvement
+- Topic-based research includes this debate
+
+### Scenario 2: Finding Debates on Healthcare Budget for Ministry Briefing
+
+**Preconditions**:
+
+- Department staff needs historical context on healthcare funding questions
+- Debate archive exists spanning recent years
+- Search and filter systems are operational
+- Topic taxonomy includes healthcare and budget categories
+
+**Steps**:
+
+1. Department Staff member opens debate search interface
+2. Staff selects "Browse by Topic" navigation
+3. Staff expands "Health Policy" topic category
+4. Staff selects "Healthcare Funding" sub-topic
+5. System displays 127 debates tagged with this topic
+6. Staff applies ministry filter: "Ministry of Health"
+7. Results narrow to 89 debates
+8. Staff applies date range filter: "Last 5 Years"
+9. Results narrow to 23 relevant debates
+10. Staff sorts results by date: newest first
+11. Staff reviews debate titles and descriptions
+12. Staff selects most relevant debate for detailed review
+13. Staff views related debates shown in sidebar
+14. Staff exports list of all 23 debates for briefing preparation
+
+**Postconditions**:
+
+- Staff has located relevant historical debates
+- Response preparation is supported by organized historical data
+- Related debates provide additional context
+- Search results can be referenced in ministry briefing
+
+### Scenario 3: Tracking Debate Series Across Parliamentary Session
+
+**Preconditions**:
+
+- Ongoing legislative process requires multiple debate sessions
+- First debate session completed last month
+- Second debate scheduled for today
+- Policy Officer tracks debate relationships
+
+**Steps**:
+
+1. Policy Officer opens completed first debate
+2. Officer reviews debate metadata and content
+3. Officer navigates to "Related Debates" section
+4. Officer clicks "Add Related Debate"
+5. Officer searches for today's debate session
+6. Officer selects relationship type: "Sequel - Continuation"
+7. Officer adds note: "Continuation of legislative review process"
+8. System creates bidirectional relationship link
+9. Today's debate now shows previous debate as "Predecessor"
+10. Previous debate shows today's debate as "Sequel"
+11. Users viewing either debate see the relationship
+12. Timeline view shows debates in sequence
+13. Third debate is scheduled and will be linked similarly
+
+**Postconditions**:
+
+- Debate series is linked and trackable
+- Ministry staff can navigate between related debates
+- Legislative process timeline is clear
+- Contextual understanding is enhanced for response preparation
+
+## Business Value
+
+### Primary Benefits
+
+- **Discoverability**: Enables easy location of relevant debates through multiple paths
+- **Context**: Provides rich contextual information for each debate
+- **Efficiency**: Reduces time spent searching for specific debates
+- **Analysis**: Supports trend analysis and historical research
+- **Accountability**: Tracks departmental participation and responsibility
+
+### Impact
+
+- Reduces debate search time from hours to minutes
+- Enables comprehensive topic and department analysis
+- Supports effective parliamentary oversight
+- Improves institutional knowledge and continuity
+
+## Priority
+
+**MoSCoW Classification**: **Must Have**
+
+Essential for making debate content discoverable and usable. Without effective organization, the
+value of transcribed debates is significantly diminished.
+
+## Implementation Status
+
+**Status**: Implemented  
+**Version**: 1.0  
+**Last Updated**: 2024-Q4
+
+### Key Milestones
+
+- ✅ Multi-dimensional debate classification
+- ✅ Room and date organization
+- ✅ Department association
+- ✅ Topic taxonomy and tagging
+- ✅ Debate relationship management
+- ✅ Advanced search and filtering
+
+## Dependencies
+
+### Upstream Dependencies
+
+- [FR-005: User Management](./fr-005-user-management) - Department structure and permissions
+
+### Downstream Dependencies
+
+- [FR-004: Transcript Management](./fr-004-transcript-management) - Debate-transcript relationship
+- [FR-007: Real-time Notifications](./fr-007-real-time-notifications) - Notifications for new
+  debates
+- [FR-010: Dossier Building](./fr-010-dossier-building) - Includes debates in dossiers
+
+### External Dependencies
+
+- Parliamentary calendar system (optional integration)
+- Room booking system (optional integration)
+
+## Technical Overview
+
+### High-Level Architecture
+
+The debate organization system provides flexible multi-dimensional classification:
+
+**Classification System**: Debates can be organized across multiple orthogonal dimensions:
+physical/virtual rooms, dates and time periods, ministries/departments, and hierarchical topic
+taxonomy. Each dimension is independently searchable and filterable.
+
+**Metadata Management**: Comprehensive metadata schema captures debate context including basic
+information (title, description, date), location (room, chamber), participants (ministries,
+speakers), topics (primary and secondary), and legislative context (related bills and acts).
+
+**Relationship Graph**: Debates can be linked through various relationship types
+(sequel/continuation, related topic, cross-reference, response/rebuttal). Relationships are
+bidirectional and navigable from either debate.
+
+**Search and Discovery**: Multi-dimensional search supports filtering across all organization
+dimensions simultaneously. Full-text search combined with metadata filters enables precise debate
+location. Faceted search shows available filter options with result counts.
+
+**Taxonomy Management**: Flexible topic taxonomy allows hierarchical organization of subject areas.
+Topics can be added and reorganized as parliamentary priorities evolve. Support for cross-cutting
+topics that span multiple ministries.
+
+### Data Model
+
+```
+Debate → Room, Date, Duration
+      → Departments (many-to-many)
+      → Topics (many-to-many with hierarchy)
+      → Related Debates (many-to-many with relationship type)
+      → Transcripts (one-to-many)
+      → Questions (one-to-many)
+```
+
+### Key Design Principles
+
+- **Multi-dimensional**: Support multiple orthogonal classification dimensions
+- **Flexible**: Adaptable taxonomy and relationship types
+- **Discoverable**: Multiple pathways to find relevant content
+- **Contextual**: Rich metadata provides debate context
+- **Scalable**: Efficient for large debate archives
+
+## Related Documentation
+
+- **Backend Controller**: `/KDAI-backend/app/Http/Controllers/DebateController.php`
+- **Debate Model**: `/KDAI-backend/app/Models/Debate.php`
+- **Department Model**: `/KDAI-backend/app/Models/Department.php`
+- **Topic Model**: `/KDAI-backend/app/Models/Topic.php`
+- **Frontend Views**: `/KDAI-frontend/src/views/DebateList.vue`
+- **Search Service**: `/KDAI-frontend/src/services/debateService.ts`
+
+---
+
+**Document Version**: 2.0  
+**Last Reviewed**: 2025-11-11

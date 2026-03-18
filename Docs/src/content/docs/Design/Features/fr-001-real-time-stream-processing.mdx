@@ -1,0 +1,224 @@
+---
+title: FR-001 - Real-time Stream Processing
+description: Connect to and process live parliamentary M3U8 video streams in real-time
+---
+
+## Overview
+
+Real-time Stream Processing enables the KDAI system to connect to and process live parliamentary
+video streams using the M3U8 format, providing the foundation for real-time transcription and
+analysis of parliamentary debates as they happen.
+
+## Actors
+
+- **System Administrator**: Configures stream sources and monitors stream health
+- **Parliamentary Session Manager**: Initiates stream processing for live debates
+- **Debate Participant**: Speaker whose audio is being processed from the stream
+- **Transcription Service**: Consumes processed audio for real-time transcription
+- **Notification Service**: Receives alerts about stream status changes
+- **Support Staff**: Troubleshoots stream connection and quality issues
+
+## Use Cases
+
+### UC-001: Process Live Parliamentary Debate
+
+**Actor**: Parliamentary Session Manager  
+**Description**: Connect to a live parliamentary stream and begin processing audio for transcription
+and analysis in real-time during an active debate session.
+
+### UC-002: Monitor Multiple Concurrent Debates
+
+**Actor**: System Administrator  
+**Description**: Simultaneously process multiple parliamentary streams from different chambers or
+committees, ensuring all debates are captured and transcribed.
+
+### UC-003: Recover from Stream Interruption
+
+**Actor**: System Administrator  
+**Description**: Automatically detect and recover from stream interruptions due to network issues or
+source problems, minimizing data loss during critical parliamentary sessions.
+
+### UC-004: Validate Stream Quality
+
+**Actor**: Support Staff  
+**Description**: Monitor real-time stream quality metrics to identify and address issues affecting
+transcription accuracy before they impact the user experience.
+
+## Scenarios
+
+### Scenario 1: Starting Stream Processing for New Debate
+
+**Preconditions**:
+
+- Parliamentary session is scheduled to begin
+- M3U8 stream URL is configured in the system
+- Transcription service is available and ready
+- User has appropriate permissions to initiate processing
+
+**Steps**:
+
+1. Parliamentary Session Manager navigates to the debate schedule
+2. System detects the scheduled debate start time
+3. User clicks "Start Processing" for the scheduled debate
+4. System establishes connection to the M3U8 stream source
+5. System begins downloading video segments in real-time
+6. Audio is extracted from video segments and buffered
+7. Processed audio is forwarded to the transcription service
+8. System displays "Stream Active" status with quality indicators
+9. Real-time transcription begins appearing in the interface
+
+**Postconditions**:
+
+- Stream is actively processing with stable connection
+- Audio data is flowing to transcription service
+- Stream health metrics are being monitored
+- Users can view live transcription output
+
+### Scenario 2: Handling Stream Interruption During Critical Vote
+
+**Preconditions**:
+
+- Stream has been processing successfully for 30+ minutes
+- Parliamentary debate is ongoing with critical vote expected
+- Multiple users are monitoring the transcription
+- Network connection experiences temporary disruption
+
+**Steps**:
+
+1. System detects stream connection loss
+2. System immediately triggers automatic reconnection attempt
+3. Notification Service alerts Support Staff of interruption
+4. System retries connection with backoff strategy
+5. Connection is re-established within acceptable timeframe
+6. System resumes segment download from last successful point
+7. Audio processing continues with minimal gap
+8. Users see brief "Reconnecting..." indicator, then normal operation
+9. Support Staff verifies stream quality after reconnection
+
+**Postconditions**:
+
+- Stream processing has resumed successfully
+- Gap in audio/transcription is minimized
+- Incident is logged for post-session review
+- Users can continue monitoring the debate
+
+### Scenario 3: Processing Multiple Committee Streams Simultaneously
+
+**Preconditions**:
+
+- Three committee meetings are scheduled concurrently
+- System has sufficient resources for multiple streams
+- Each stream has unique configuration and destination
+- All stream sources are online and accessible
+
+**Steps**:
+
+1. System Administrator views list of scheduled concurrent sessions
+2. Administrator initiates processing for all three streams
+3. System establishes separate connections to each M3U8 source
+4. Each stream is processed independently with dedicated resources
+5. Audio from each stream is routed to separate transcription instances
+6. System monitors health and performance of all active streams
+7. Dashboard displays status and quality metrics for each stream
+8. Administrators can view real-time processing statistics
+9. All three streams continue processing throughout their sessions
+
+**Postconditions**:
+
+- All three streams are processing successfully
+- Each stream maintains independent quality and performance
+- Resources are allocated appropriately across streams
+- No cross-contamination of audio or transcription data
+
+## Business Value
+
+### Primary Benefits
+
+- **Real-time Access**: Enables immediate transcription and analysis of parliamentary proceedings
+- **Reliability**: Ensures continuous capture of critical government debates and decisions
+- **Scalability**: Supports processing of multiple simultaneous sessions across chambers
+- **Foundation**: Provides core infrastructure for all downstream features
+
+### Impact
+
+- Reduces delay between spoken word and searchable transcript from hours to seconds
+- Enables real-time decision support for parliamentary staff
+- Ensures no critical debate content is lost due to technical issues
+- Supports democratic transparency through immediate access to proceedings
+
+## Priority
+
+**MoSCoW Classification**: **Must Have**
+
+This is a foundational capability without which the entire KDAI system cannot function. All
+transcription and analysis features depend on reliable stream processing.
+
+## Implementation Status
+
+**Status**: Implemented  
+**Version**: 1.0  
+**Last Updated**: 2024-Q4
+
+### Key Milestones
+
+- ✅ Basic M3U8 stream connection
+- ✅ Audio extraction pipeline
+- ✅ Automatic reconnection logic
+- ✅ Multi-stream support
+- ✅ Health monitoring and alerting
+
+## Dependencies
+
+### Upstream Dependencies
+
+None - this is a foundational feature
+
+### Downstream Dependencies
+
+- [FR-002: Live Transcription](./fr-002-live-transcription) - Consumes processed audio
+- [FR-003: Question Extraction](./fr-003-question-extraction) - Relies on continuous stream
+- [FR-007: Real-time Notifications](./fr-007-real-time-notifications) - Stream status alerts
+
+### External Dependencies
+
+- Parliamentary stream infrastructure (M3U8 endpoints)
+- Network connectivity and bandwidth
+- Video/audio processing libraries
+
+## Technical Overview
+
+### High-Level Architecture
+
+The stream processing system consists of several key components working in coordination:
+
+**Stream Ingestion Layer**: Establishes connections to M3U8 sources, downloads video segments, and
+manages connection lifecycle with automatic retry logic.
+
+**Audio Processing Pipeline**: Extracts audio tracks from video segments, normalizes audio format,
+and maintains processing buffers to ensure smooth data flow to transcription services.
+
+**Health Monitoring System**: Continuously tracks connection status, stream quality metrics,
+processing latency, and resource utilization, triggering alerts when thresholds are exceeded.
+
+**Multi-Stream Orchestration**: Manages resource allocation across multiple concurrent streams,
+ensuring isolation and fair resource distribution.
+
+### Key Design Principles
+
+- **Resilience First**: Built with failure recovery as a primary concern
+- **Low Latency**: Optimized for minimal delay from source to transcription
+- **Observable**: Comprehensive metrics and logging for troubleshooting
+- **Modular**: Components can be upgraded independently
+
+## Related Documentation
+
+- **Technical Implementation**: See `/KDAI-services/README.md` for stream processing service details
+- **M3U8 Emulator**: Development testing tool at `/KDAI-services/M3U8-emulator/`
+- **ATTS Integration**: Audio processing configuration in `/KDAI-services/ATTS/`
+- **Deployment**: Docker Compose configuration in `/KDAI-DockerCompose/`
+- **Monitoring**: Observability setup in backend logging configuration
+
+---
+
+**Document Version**: 2.0  
+**Last Reviewed**: 2025-11-11

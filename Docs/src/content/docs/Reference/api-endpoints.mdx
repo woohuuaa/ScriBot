@@ -1,0 +1,627 @@
+---
+title: API Endpoints Reference
+description: Complete API endpoint documentation for KDAI system
+---
+
+import { MermaidChart } from '../../../components/MermaidChart';
+
+## Authentication Overview
+
+All API endpoints require authentication except health checks.
+
+### Authentication Methods
+
+- **Sanctum Tokens**: For user authentication
+- **API Keys**: For service-to-service communication
+
+### Authentication Flow
+
+<MermaidChart
+  chartDefinition={`sequenceDiagram
+    participant Client
+    participant API as Laravel API
+    participant Sanctum
+    participant DB as PostgreSQL
+
+    Note over Client,DB: User Login Flow
+    Client->>API: POST /api/auth/login
+    API->>DB: Validate credentials
+    DB-->>API: User data
+    API->>Sanctum: Generate token
+    Sanctum-->>API: Sanctum token
+    API-->>Client: Token + user data
+
+    Note over Client,DB: Authenticated API Calls
+    Client->>API: Request with Bearer token
+    API->>Sanctum: Validate token
+    Sanctum-->>API: Token valid
+    API->>DB: Process request
+    DB-->>API: Response data
+    API-->>Client: JSON response
+
+    Note over Client,DB: Service Communication
+    Client->>API: Request with API Key
+    API->>DB: Process service request
+    DB-->>API: Response data
+    API-->>Client: JSON response
+
+`} />
+
+### Headers
+
+```http
+Authorization: Bearer {sanctum_token}
+X-API-Key: {api_key}
+Content-Type: application/json
+```
+
+## Public Endpoints
+
+### Health Check
+
+```http
+GET /api/health
+```
+
+**Response:**
+
+```json
+{
+  "status": "ok"
+}
+```
+
+## Authentication Endpoints
+
+### Login
+
+```http
+POST /api/auth/login
+```
+
+**Request:**
+
+```json
+{
+  "email": "user@example.com",
+  "password": "password"
+}
+```
+
+**Response:**
+
+```json
+{
+  "token": "sanctum_token",
+  "user": {
+    "id": "uuid",
+    "name": "User Name",
+    "email": "user@example.com"
+  }
+}
+```
+
+### Logout
+
+```http
+POST /api/auth/logout
+Authorization: Bearer {token}
+```
+
+### Refresh Token
+
+```http
+POST /api/auth/refresh-token
+Authorization: Bearer {token}
+```
+
+## Debate Endpoints
+
+### Debate Management Flow
+
+<MermaidChart
+  chartDefinition={`graph TB
+    subgraph "Debate Lifecycle"
+        Create[POST /api/debate]
+        View[GET /api/debate/{id}]
+        Update[PUT /api/debate/{id}]
+        Delete[DELETE /api/debate/{id}]
+    end
+    
+    subgraph "Debate Operations"
+        Files[GET/POST /api/debate/{id}/files]
+        Prep[GET/POST/PUT /api/debate/{id}/preparation]
+        UserDebates[GET /api/debate/user]
+    end
+    
+    Create --> View
+    View --> Update
+    Update --> Delete
+    
+    classDef endpoint fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef operation fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    
+    class Create,View,Update,Delete endpoint
+    class Files,Prep,UserDebates operation
+`}
+/>
+
+### List Debates
+
+```http
+GET /api/debate
+Authorization: Bearer {token}
+```
+
+**Query Parameters:**
+
+- `page`: Page number (default: 1)
+- `per_page`: Items per page (default: 15)
+
+### Get Debate
+
+```http
+GET /api/debate/{id}
+Authorization: Bearer {token}
+```
+
+### Create Debate
+
+```http
+POST /api/debate
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "title": "Debate Title",
+  "date": "2025-01-15T10:00:00Z",
+  "room_id": "uuid"
+}
+```
+
+### Delete Debate
+
+```http
+DELETE /api/debate/{id}
+Authorization: Bearer {token}
+```
+
+### Get User Debates
+
+```http
+GET /api/debate/user
+Authorization: Bearer {token}
+```
+
+### Debate Preparation
+
+```http
+GET /api/debate/{id}/preparation
+Authorization: Bearer {token}
+```
+
+```http
+POST /api/debate/{id}/preparation
+Authorization: Bearer {token}
+```
+
+```http
+PUT /api/debate/{id}/preparation
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "preparation_text": "AI-generated preparation",
+  "preparation_questions": ["Question 1", "Question 2"]
+}
+```
+
+### Debate Files
+
+```http
+GET /api/debate/{id}/files
+Authorization: Bearer {token}
+```
+
+```http
+POST /api/debate/{id}/files
+Authorization: Bearer {token}
+Content-Type: multipart/form-data
+```
+
+**Request:**
+
+```
+file: [file_data]
+```
+
+```http
+GET /api/debate/{id}/files/{fileId}/download
+Authorization: Bearer {token}
+```
+
+```http
+DELETE /api/debate/{id}/files/{fileId}
+Authorization: Bearer {token}
+```
+
+## Question Endpoints
+
+### Question Management
+
+```http
+GET /api/debateQuestion/questions/{debateId}
+Authorization: Bearer {token}
+```
+
+### Create Question
+
+```http
+POST /api/debateQuestion
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "debate_id": "uuid",
+  "text": "Question text",
+  "question_number": 1,
+  "segment_id": "segment_timestamp",
+  "topic_id": "uuid",
+  "party": "Party Name",
+  "commissioner": "Commissioner Name",
+  "assigned_to": "Assigned User"
+}
+```
+
+### Get Question
+
+```http
+GET /api/debateQuestion/{id}
+Authorization: Bearer {token}
+```
+
+### Update Question
+
+```http
+PUT /api/debateQuestion/{id}
+Authorization: Bearer {token}
+```
+
+**Request:** Same as create question
+
+### Delete Question
+
+```http
+DELETE /api/debateQuestion/{id}
+Authorization: Bearer {token}
+```
+
+## Topic Endpoints
+
+### List Debate Topics
+
+```http
+GET /api/topic/debate/{debateId}
+Authorization: Bearer {token}
+```
+
+### Create Topic
+
+```http
+POST /api/topic
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "name": "Topic Name",
+  "department_id": "uuid"
+}
+```
+
+### Get Topic
+
+```http
+GET /api/topic/{id}
+Authorization: Bearer {token}
+```
+
+### Update Topic
+
+```http
+PUT /api/topic/{id}
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "name": "Updated Topic Name"
+}
+```
+
+### Delete Topic
+
+```http
+DELETE /api/topic/{id}
+Authorization: Bearer {token}
+```
+
+### Attach Topic to Debate
+
+```http
+POST /api/topic/{topicId}/debate/{debateId}
+Authorization: Bearer {token}
+```
+
+### Detach Topic from Debate
+
+```http
+DELETE /api/topic/{topicId}/debate/{debateId}
+Authorization: Bearer {token}
+```
+
+## Transcript Endpoints
+
+### Transcription Control
+
+```http
+POST /api/transcript/toggle
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "debate_id": "uuid",
+  "action": "start|stop"
+}
+```
+
+### Get Full Transcript
+
+```http
+POST /api/transcript/getFullTranscript
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "debate_id": "uuid"
+}
+```
+
+### Segment Management
+
+```http
+GET /api/debate/{debateId}/segment
+Authorization: Bearer {token}
+```
+
+**Query Parameters:**
+
+- `page`: Page number
+- `per_page`: Items per page
+- `is_checked`: Filter by verification status
+
+### Get Segment
+
+```http
+GET /api/debate/{debateId}/segment/{segmentId}
+Authorization: Bearer {token}
+```
+
+### Update Segment
+
+```http
+PATCH /api/debate/{debateId}/segment/{segmentId}
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "manual_text": "Corrected transcript text",
+  "is_checked": true
+}
+```
+
+## User Endpoints
+
+### Get Current User
+
+```http
+GET /api/user/getSignedInUser
+Authorization: Bearer {token}
+```
+
+### Get User Department
+
+```http
+GET /api/user/getDepartment
+Authorization: Bearer {token}
+```
+
+### Get Users by Department
+
+```http
+POST /api/user/department
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "department_id": "uuid"
+}
+```
+
+### Get User
+
+```http
+GET /api/user/{id}
+Authorization: Bearer {token}
+```
+
+### Create User
+
+```http
+POST /api/user
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "name": "User Name",
+  "email": "user@example.com",
+  "password": "password",
+  "department_id": "uuid"
+}
+```
+
+### Update User
+
+```http
+PUT /api/user/{id}
+Authorization: Bearer {token}
+```
+
+**Request:**
+
+```json
+{
+  "name": "Updated Name",
+  "email": "updated@example.com",
+  "department_id": "uuid"
+}
+```
+
+## Service-to-Service Endpoints
+
+These endpoints require API key authentication.
+
+### ATTS Service Control
+
+```http
+POST /api/atts/start-capture
+X-API-Key: {api_key}
+```
+
+**Request:**
+
+```json
+{
+  "debate_id": "uuid",
+  "m3u8_stream": "https://example.com/stream.m3u8"
+}
+```
+
+```http
+POST /api/atts/stop-capture
+X-API-Key: {api_key}
+```
+
+**Request:**
+
+```json
+{
+  "debate_id": "uuid"
+}
+```
+
+### Transcript Processing
+
+```http
+POST /api/debate/transcript
+X-API-Key: {api_key}
+```
+
+**Request:**
+
+```json
+{
+  "debate_id": "uuid",
+  "segment_id": "timestamp",
+  "transcript": "Transcribed text"
+}
+```
+
+### Question Extraction
+
+```http
+POST /api/debate/question
+X-API-Key: {api_key}
+```
+
+**Request:**
+
+```json
+{
+  "debate_id": "uuid",
+  "questions": [
+    {
+      "text": "Question text",
+      "timestamp": "2025-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+All endpoints return consistent error format:
+
+```json
+{
+  "message": "Error description",
+  "errors": {
+    "field": ["Validation error details"]
+  }
+}
+```
+
+### HTTP Status Codes
+
+- `200` - Success
+- `201` - Created
+- `400` - Bad Request
+- `401` - Unauthorized
+- `403` - Forbidden
+- `404` - Not Found
+- `422` - Validation Error
+- `500` - Internal Server Error
+
+## Rate Limiting
+
+API endpoints may be rate limited:
+
+- **User Authentication**: 10 requests per minute
+- **Service Endpoints**: 100 requests per minute
+- **Data Operations**: 60 requests per minute
+
+Rate limit headers are included in responses:
+
+```http
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 59
+X-RateLimit-Reset: 1642694400
+```

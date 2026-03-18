@@ -1,0 +1,253 @@
+---
+title: Functional Requirements
+description: Detailed functional requirements for the KDAI parliamentary debate system
+---
+
+import { MermaidChart } from '../../../components/MermaidChart';
+
+## Overview
+
+Functional requirements define what the KDAI system must do to serve its users. These requirements
+describe specific behaviors, features, and capabilities that the system must provide.
+
+## Requirements Summary
+
+| ID                                                            | Title                       | Priority   | Description                                                                                           | Implemented |
+| ------------------------------------------------------------- | --------------------------- | ---------- | ----------------------------------------------------------------------------------------------------- | ----------- |
+| [FR-001](/design/features/fr-001-real-time-stream-processing) | Real-time Stream Processing | **Must**   | Connect to and process live parliamentary M3U8 video streams in real-time                             | Yes         |
+| [FR-002](/design/features/fr-002-live-transcription)          | Live Transcription          | **Must**   | Provide real-time transcription of parliamentary debates using AI speech recognition                  | Yes         |
+| [FR-003](/design/features/fr-003-question-extraction)         | Question Extraction         | **Must**   | Automatically identify and extract parliamentary questions from transcript data                       | Yes         |
+| [FR-004](/design/features/fr-004-transcript-management)       | Transcript Management       | **Must**   | Provide comprehensive transcript editing and management capabilities                                  | Yes         |
+| [FR-005](/design/features/fr-005-user-management)             | User Management             | **Should** | Support role-based user management with departmental organization                                     | Progress    |
+| [FR-006](/design/features/fr-006-debate-organization)         | Debate Organization         | **Could**  | Organize debates by rooms, dates, departments, and topics                                             | No          |
+| [FR-007](/design/features/fr-007-real-time-notifications)     | Real-time Notifications     | **Must**   | Provide real-time updates for transcript segments and extracted questions                             | Yes         |
+| [FR-008](/design/features/fr-008-file-management)             | File Management             | **Could**  | Support file upload, storage, and management for debate-related documents                             | No          |
+| [FR-009](/design/features/fr-009-realtime-multi-user-working) | Realtime multi-user working | **Could**  | Allow multiple users to work on the application at the same time and receive updates                  | Partial     |
+| [FR-010](/design/features/fr-010-dossier-building)            | Dossier Building            | **Could**  | Allow authorized users to add dossiers and preparation material for debates                           | Partial     |
+| [FR-011](/design/features/fr-011-ai-assisted-dossier)         | AI assisted dossier         | **Could**  | Use AI to assist in building, searching, and retrieving dossiers and preparation material for debates | No          |
+
+## Core Functional Requirements
+
+### FR-001: Real-time Stream Processing
+
+**Description**: System must connect to and process live parliamentary M3U8 video streams in
+real-time.
+
+**Acceptance Criteria**:
+
+- System connects to external M3U8 streams
+- Audio extraction begins automatically upon stream connection
+- Stream interruption detection with automatic reconnection
+- Support for multiple simultaneous streams (future requirement)
+
+**Business Value**: Enables immediate access to parliamentary proceedings without manual
+intervention.
+
+**Priority**: Critical
+
+**Dependencies**: External M3U8 stream availability, network connectivity
+
+---
+
+### FR-002: Live Transcription
+
+**Description**: System must provide real-time transcription of parliamentary debates using AI
+speech recognition.
+
+**Acceptance Criteria**:
+
+- Transcription with minimal latency from speech to display
+- Accuracy rate of 95%+ for clear parliamentary speech
+- Support for Dutch language (primary) and multiple languages (future)
+- Automatic punctuation and sentence formatting
+- Speaker identification capabilities (future)
+
+**Business Value**: Provides immediate written record of proceedings for accessibility and archival.
+
+**Priority**: Critical
+
+**Dependencies**: WhisperLive service, audio quality, network stability
+
+---
+
+### FR-003: Question Extraction
+
+**Description**: System must automatically identify and extract parliamentary questions from
+transcript data.
+
+**Acceptance Criteria**:
+
+- Question detection accuracy of 90%+ for formatted parliamentary questions
+- Automatic categorization by topic and department
+- Question numbering and metadata extraction
+- Real-time question availability during debates
+
+**Business Value**: Automates identification of formal parliamentary questions for tracking and
+response.
+
+**Priority**: High
+
+**Dependencies**: LLM service, transcript quality, question formatting standards
+
+---
+
+### FR-004: Transcript Management
+
+**Description**: System must provide comprehensive transcript editing and management capabilities.
+
+**Acceptance Criteria**:
+
+- Manual transcript correction with version tracking
+- Search and filter functionality across all transcripts
+- Transcript segment linking to questions and topics
+- Audit trail for all corrections
+
+**Business Value**: A quick version of the transcript to help detect **questions** and
+**commitments** during live debates so the government minister can respond promptly.
+
+**Priority**: High
+
+**Dependencies**: User authentication, audio processing, transcription service, redis messaging,
+database, frontend, backend, web-sockets.
+
+---
+
+### FR-005: User Management
+
+**Description**: System must support role-based user management with departmental organization.
+
+**Acceptance Criteria**:
+
+- Department-based user organization
+- Role assignment (Administrator, Clerk, Commissioner, Speaker)
+- Authentication and authorization system
+- User profile management
+- Activity logging and audit trails
+
+**Business Value**: Provides secure access control and accountability for system usage.
+
+**Priority**: High
+
+**Dependencies**: Authentication service, database, department data
+
+---
+
+### FR-006: Debate Organization
+
+**Description**: System must organize debates by rooms, dates, departments, and topics.
+
+**Acceptance Criteria**:
+
+- Debate scheduling and calendar management
+- Room assignment and capacity management
+- Department participation tracking
+- Topic categorization and tagging
+- File attachment support for debate materials
+
+**Business Value**: Enables systematic organization and retrieval of parliamentary proceedings.
+
+**Priority**: Medium
+
+**Dependencies**: Room management system, calendar integration, file storage
+
+---
+
+### FR-007: Real-time Notifications
+
+**Description**: System must provide real-time updates for transcript segments and extracted
+questions.
+
+**Acceptance Criteria**:
+
+- WebSocket-based live updates
+- Push notifications for new questions
+- Transcript correction broadcasts
+- Debate status change notifications
+
+**Business Value**: Keeps stakeholders informed of proceedings in real-time.
+
+**Priority**: Medium
+
+**Dependencies**: WebSocket server, client-side notification handling
+
+---
+
+### FR-008: File Management
+
+**Description**: System must support file upload, storage, and management for debate-related
+documents.
+
+**Acceptance Criteria**:
+
+- Secure file upload with virus scanning
+- File type validation and size limits
+- Version control for document updates
+- Access control based on user roles
+- Integration with debate records
+
+**Business Value**: Provides centralized document management for parliamentary materials.
+
+**Priority**: Medium
+
+**Dependencies**: File storage system, security scanning, access control
+
+## User Interaction Flows
+
+### Debate Creation and Management Flow
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`flowchart TD
+    User[Administrator] --> Create[Create Debate]
+    Create --> Schedule[Set Schedule]
+    Schedule --> Assign[Assign Room]
+    Assign --> Participants[Add Participants]
+    Participants --> Departments[Select Departments]
+    Departments --> Topics[Add Topics]
+    Topics --> Files[Upload Files]
+    Files --> Start[Start Transcription]
+    
+    Start --> Monitor[Monitor Live]
+    Monitor --> Questions[Extract Questions]
+    Questions --> Review[Review & Edit]
+    Review --> Publish[Publish Transcript]
+    
+    classDef user fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef process fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef data fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    
+    class User user
+    class Create,Schedule,Assign,Participants,Departments,Topics,Files,Start process
+    class Monitor,Questions,Review,Publish data
+`}
+/>
+
+### Transcript Correction Workflow
+
+<MermaidChart
+  client:only="react"
+  chartDefinition={`flowchart TD
+    Auto[Auto-Transcription] --> Display[Display to User]
+    Display --> Review[Staff Review]
+    Review --> Decision{Correction Needed?}
+    
+    Decision -->|Yes| Edit[Make Corrections]
+    Decision -->|No| Approve[Mark as Approved]
+    
+    Edit --> Version[Create New Version]
+    Version --> Audit[Log Changes]
+    Audit --> Update[Update Transcript]
+    Update --> Broadcast[Broadcast Corrections]
+    
+    Approve --> Archive[Archive as Final]
+    Broadcast --> Archive
+    
+    classDef auto fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef manual fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef system fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    
+    class Auto auto
+    class Display,Review,Edit,Approve manual
+    class Decision,Version,Audit,Update,Broadcast,Archive system
+`}
+/>

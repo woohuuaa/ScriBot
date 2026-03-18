@@ -1,0 +1,53 @@
+---
+title: Prerequisites
+description: System requirements and dependencies needed to run KDAI
+---
+
+KDAI requires:
+
+## Required Software
+
+- Docker
+- Docker Compose
+
+## Network Requirements
+
+### Ports
+
+Ensure the following ports are available:
+
+| Port | Service    | Description              |
+| ---- | ---------- | ------------------------ |
+| 5173 | Frontend   | Vue.js application (dev) |
+| 8000 | Backend    | Laravel API              |
+| 5432 | PostgreSQL | Database                 |
+| 9000 | MinIO      | Object storage API       |
+| 9001 | MinIO      | Management console       |
+| 7010 | ATTS CSP   | Audio capture service    |
+
+:::tip In production, expose only ports 80 and 443 behind a reverse proxy. :::
+
+## Development Tools
+
+For development outside Docker:
+
+- Node.js 20+ and npm
+- PHP 8.2+ and Composer
+- Python 3.11+
+
+## Verification Checklist
+
+Before proceeding:
+
+- [ ] Docker is installed and running
+- [ ] Docker Compose is available
+- [ ] Required ports are available
+- [ ] Development tools are installed (if developing)
+
+## Next Steps
+
+Once prerequisites are met:
+
+1. [Docker Setup](/installation/docker-setup/) - Build and run the containers
+2. [Environment Configuration](/installation/environment/) - Configure environment variables
+3. [Quick Start](/getting-started/quick-start/) - Get the system running

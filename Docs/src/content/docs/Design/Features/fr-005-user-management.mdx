@@ -1,0 +1,257 @@
+---
+title: FR-005 - User Management
+description: Support role-based user management with departmental organization
+---
+
+## Overview
+
+User Management provides comprehensive role-based access control with departmental organization,
+ensuring secure and appropriate access to the KDAI system for different user types and
+organizational structures within the parliamentary environment.
+
+## Actors
+
+- **System Administrator**: Manages users, roles, and system-wide permissions
+- **Department Coordinator**: Manages user access within their specific department
+- **Department Staff**: Manages own profile, preferences, and password
+- **Information Manager**: Oversees user organization and access patterns
+- **Support Staff**: Assists users with access issues and password resets
+
+## Use Cases
+
+### UC-001: Onboard New Department Staff Member
+
+**Actor**: System Administrator  
+**Description**: Create new user account for incoming department staff member, assign appropriate
+role and ministry, configure initial permissions, and send welcome credentials for system access.
+
+### UC-002: Manage Departmental User Access
+
+**Actor**: Department Coordinator  
+**Description**: Review and manage user access for staff within a specific ministry, adjusting
+permissions based on role changes or project assignments without requiring system administrator
+intervention.
+
+### UC-003: Self-Service Password Reset
+
+**Actor**: Department Staff  
+**Description**: Reset forgotten password through self-service workflow using email verification,
+enabling users to regain access without waiting for support staff assistance.
+
+### UC-004: Audit User Activity for Security
+
+**Actor**: System Administrator  
+**Description**: Review audit logs of user authentication, authorization events, and system access
+patterns to ensure security compliance and investigate potential security incidents.
+
+## Scenarios
+
+### Scenario 1: Onboarding New Question Monitoring Staff
+
+**Preconditions**:
+
+- New hire approved for question monitoring role in ministry
+- Ministry assignment is determined
+- Email system is accessible for sending credentials
+- User database has capacity for new account
+
+**Steps**:
+
+1. System Administrator logs into user management interface
+2. Administrator clicks "Add New User" button
+3. Administrator enters user details: name, email, ministry
+4. Administrator selects role: "Department Staff"
+5. System displays role-specific permissions for review
+6. Administrator confirms permissions are appropriate
+7. Administrator assigns user to "Ministry of Justice"
+8. System creates user account with generated temporary password
+9. System sends welcome email with login credentials
+10. New user receives email and logs in for first time
+11. System prompts user to change temporary password
+12. User sets new password meeting security requirements
+13. User is directed to onboarding tour of question monitoring features
+
+**Postconditions**:
+
+- User account is active with appropriate permissions
+- User can access question monitoring features
+- Welcome email is sent and received
+- Audit log records account creation
+
+### Scenario 2: Department Coordinator Adjusts Team Member Permissions
+
+**Preconditions**:
+
+- Team member has been promoted to senior role
+- Department Coordinator has user management permissions for their ministry
+- User account exists and is active
+- New permissions are defined for senior role
+
+**Steps**:
+
+1. Department Coordinator navigates to "My Ministry Users" section
+2. Coordinator searches for team member by name
+3. Coordinator views current role: "Viewer" with read-only permissions
+4. Coordinator clicks "Edit User Permissions"
+5. Coordinator changes role to "Policy Officer"
+6. System displays permission comparison: old vs new
+7. Coordinator reviews additional permissions being granted
+8. Coordinator confirms permission change
+9. System updates user role and permissions immediately
+10. System sends notification to user about role change
+11. User logs in and sees new features available
+12. Audit log records permission change with coordinator attribution
+
+**Postconditions**:
+
+- User has elevated permissions
+- User is notified of role change
+- Coordinator action is audited
+- User can access policy officer features
+
+### Scenario 3: Self-Service Password Reset During Ongoing Debate
+
+**Preconditions**:
+
+- Staff member has forgotten password during active debate
+- User has access to registered email address
+- Password reset system is operational
+- Security policies allow self-service reset
+
+**Steps**:
+
+1. User navigates to login page and clicks "Forgot Password"
+2. User enters email address associated with account
+3. System validates email exists in user database
+4. System generates secure password reset token
+5. System sends reset email to user's registered address
+6. User receives email within seconds
+7. User clicks reset link in email
+8. System validates token is not expired and unused
+9. User enters new password twice for confirmation
+10. System validates password meets security requirements
+11. System updates password and invalidates old sessions
+12. User is automatically logged in after password change
+13. User immediately accesses ongoing debate question monitoring
+
+**Postconditions**:
+
+- User has new secure password
+- User regained system access quickly
+- Old password is no longer valid
+- All previous sessions are terminated
+- Password reset is logged for security audit
+
+## Business Value
+
+### Primary Benefits
+
+- **Security**: Ensures only authorized users access appropriate system features
+- **Flexibility**: Departmental management enables distributed administration
+- **Compliance**: Complete audit trails support regulatory compliance
+- **Efficiency**: Self-service features reduce administrative overhead
+- **Scalability**: Supports growing user base across parliamentary structure
+
+### Impact
+
+- Reduces account setup time from hours to minutes
+- Minimizes security risks through proper access control
+- Enables efficient management of large user populations
+- Supports compliance with government security standards
+
+## Priority
+
+**MoSCoW Classification**: **Must Have**
+
+Essential security and access control foundation. All other features depend on proper user
+authentication and authorization.
+
+## Implementation Status
+
+**Status**: Implemented  
+**Version**: 1.0  
+**Last Updated**: 2024-Q4
+
+### Key Milestones
+
+- ✅ Laravel Sanctum authentication
+- ✅ Role-based access control (RBAC)
+- ✅ Departmental organization structure
+- ✅ Self-service password reset
+- ✅ Comprehensive audit logging
+- ✅ Multi-factor authentication support
+
+## Dependencies
+
+### Upstream Dependencies
+
+None - this is a foundational feature
+
+### Downstream Dependencies
+
+All features depend on user management:
+
+- [FR-004: Transcript Management](./fr-004-transcript-management) - User permissions for editing
+- [FR-006: Debate Organization](./fr-006-debate-organization) - Department-based access
+- [FR-010: Dossier Building](./fr-010-dossier-building) - User-owned dossiers
+
+### External Dependencies
+
+- Email service for notifications and password resets
+- Optional: External authentication provider (SSO/LDAP)
+- Optional: Multi-factor authentication service
+
+## Technical Overview
+
+### High-Level Architecture
+
+The user management system provides secure authentication and authorization:
+
+**Authentication Layer**: Laravel Sanctum provides token-based authentication for SPA (Single Page
+Application) access. Supports session-based authentication for web clients and token-based
+authentication for API clients.
+
+**Role-Based Access Control**: Implements RBAC with predefined roles (Administrator, Department
+Coordinator, Policy Officer, Question Editor, Viewer) and fine-grained permissions. Permissions are
+checked at both backend API endpoints and frontend UI components.
+
+**Departmental Organization**: Users are associated with ministries/departments, enabling
+ministry-based access control and management. Department Coordinators can manage users within their
+ministry without system administrator privileges.
+
+**Audit System**: Comprehensive logging of all authentication events (login, logout, failed
+attempts), authorization changes (role assignments, permission modifications), and user management
+actions (account creation, profile updates).
+
+**Self-Service Features**: Password reset workflow using secure tokens sent via email. Profile
+management allows users to update preferences without administrator intervention.
+
+### Security Features
+
+- **Password Security**: Strong password requirements enforced by validation rules
+- **Session Management**: Secure session handling with configurable timeout
+- **Brute Force Protection**: Account lockout after multiple failed login attempts
+- **Token Management**: Secure API token generation and revocation
+- **Audit Logging**: Complete activity tracking for security investigations
+
+### Key Design Principles
+
+- **Least Privilege**: Users granted minimum permissions necessary
+- **Separation of Duties**: Distributed management through department coordinators
+- **Defense in Depth**: Multiple layers of security controls
+- **Auditability**: Complete audit trail for all security-relevant events
+- **User-Friendly**: Balance security with usability
+
+## Related Documentation
+
+- **Backend Auth**: `/KDAI-backend/app/Http/Controllers/AuthController.php`
+- **User Model**: `/KDAI-backend/app/Models/User.php`
+- **Permissions**: `/KDAI-backend/app/Policies/`
+- **Middleware**: `/KDAI-backend/app/Http/Middleware/`
+- **Frontend Auth**: `/KDAI-frontend/src/services/authService.ts`
+- **Auth Store**: `/KDAI-frontend/src/stores/authStore.ts`
+
+---
+
+**Document Version**: 2.0  
+**Last Reviewed**: 2025-11-11

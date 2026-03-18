@@ -1,0 +1,45 @@
+---
+title: KDAI - KamerDebat AI Documentation
+description: Documentation for the KamerDebat AI system
+template: splash
+hero:
+  tagline: Real-time debate transcription and question extraction system
+  image:
+    file: ../../assets/houston.webp
+  actions:
+    - text: Quick Start Guide
+      link: /getting-started/quick-start/
+      icon: right-arrow
+    - text: Architecture Overview
+      link: /getting-started/architecture/
+      icon: open-book
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Overview
+
+KDAI (KamerDebat AI) processes live audio streams from parliamentary debates, transcribes speech,
+and extracts questions using AI.
+
+## System Components
+
+- **Backend (Laravel)**: RESTful API server with integrated AI processing for transcriptions and
+  question extraction
+- **Frontend (Vue.js)**: Web interface for viewing debates, transcriptions, and extracted questions
+- **Services**: Specialized microservices for audio capture and transcription (ATTS), and question
+  extraction (QES)
+- **Infrastructure**: PostgreSQL database, MinIO object storage, and Nginx reverse proxy
+
+## Technology Stack
+
+- **Backend**: Laravel 12, PHP 8.2+, PostgreSQL
+- **Frontend**: Vue 3, TypeScript, Vite
+- **Services**: Python, OpenAI Whisper, LLM integration
+- **Infrastructure**: Docker, Nginx, MinIO, Redis
+- **AI/ML**: OpenAI Whisper (local), LLM for question extraction (Ollama or configured)
+
+## Getting Started
+
+Start with the [Quick Start Guide](/getting-started/quick-start/).

@@ -1,0 +1,240 @@
+---
+title: FR-002 - Live Transcription
+description: Provide real-time transcription of parliamentary debates using AI speech recognition
+---
+
+## Overview
+
+Live Transcription converts spoken parliamentary debate audio into text in real-time using advanced
+AI speech recognition technology, enabling immediate accessibility and searchability of proceedings
+as they happen.
+
+## Actors
+
+- **Department Staff**: Monitor live transcription to identify questions directed at their ministry
+  during debates
+- **Transcription Editor**: Review and correct AI-generated transcripts for accuracy
+- **Department Coordinator**: Oversee transcript monitoring across multiple debates simultaneously
+- **System Administrator**: Configure and monitor transcription services
+- **Transcription Service**: AI-powered speech recognition engine processing audio
+
+## Use Cases
+
+### UC-001: Monitor Live Debate Transcription
+
+**Actor**: Department Staff  
+**Description**: Watch real-time transcription during live parliamentary debate to identify
+questions directed at their ministry, enabling rapid response preparation while proceedings
+continue.
+
+### UC-002: Identify Speakers for Question Attribution
+
+**Actor**: Transcription Editor  
+**Description**: Automatically identify and label different speakers in the transcription output,
+maintaining clear attribution of statements to specific parliament members for accurate question
+tracking.
+
+### UC-003: Handle Multi-language Parliamentary Sessions
+
+**Actor**: System Administrator  
+**Description**: Process debates that include multiple languages (primarily Dutch, with occasional
+English), automatically detecting language changes and maintaining transcription accuracy across
+language boundaries.
+
+### UC-004: Correct Transcription Errors
+
+**Actor**: Transcription Editor  
+**Description**: Review and correct AI transcription errors in technical terminology, proper nouns,
+or specialized policy language to ensure accurate records for question extraction and response
+preparation.
+
+## Scenarios
+
+### Scenario 1: Transcribing Multi-Speaker Committee Debate
+
+**Preconditions**:
+
+- Audio stream is actively being processed from FR-001
+- Transcription service is initialized with parliamentary vocabulary
+- Multiple speakers are participating in the debate
+- User interface is ready to display real-time output
+
+**Steps**:
+
+1. First speaker begins addressing the committee
+2. Audio segments are received from stream processing pipeline
+3. Speech recognition engine processes audio in real-time
+4. Speaker diarization identifies the active speaker
+5. Transcribed text appears on screen with speaker label
+6. Second speaker interjects with a question
+7. System detects speaker change and updates label
+8. Transcription continues with new speaker attribution
+9. Text is formatted with proper punctuation and timestamps
+10. Both speakers' statements are clearly differentiated in output
+
+**Postconditions**:
+
+- Complete transcription of both speakers is available
+- Speaker changes are accurately detected and labeled
+- Text is properly formatted and timestamped
+- Transcription is stored for later review and question extraction
+
+### Scenario 2: Processing Debate with Challenging Audio Conditions
+
+**Preconditions**:
+
+- Parliamentary session is in progress with active transcription
+- Audio quality begins to degrade due to technical issues
+- Multiple staff members are monitoring the transcription
+- Background noise increases due to chamber activity
+
+**Steps**:
+
+1. Transcription is proceeding normally with good accuracy
+2. Audio quality degradation is detected by the system
+3. Noise reduction algorithms are automatically applied
+4. Transcription confidence scores begin to decrease
+5. System flags low-confidence segments for review
+6. Transcription continues with best-effort processing
+7. Quality indicator shows "Reduced Accuracy" to users
+8. Staff are notified of audio quality issues
+9. Audio quality improves as technical issue is resolved
+10. System returns to normal accuracy mode
+11. Flagged segments remain marked for post-session review
+
+**Postconditions**:
+
+- Continuous transcription maintained throughout incident
+- Low-confidence segments are flagged for manual review
+- Users were informed of temporary quality reduction
+- Complete record exists despite audio challenges
+
+### Scenario 3: Handling Language Switching in International Debate
+
+**Preconditions**:
+
+- Parliamentary debate includes international participants
+- Transcription service supports both Dutch and English
+- Multiple languages are expected during the session
+- Automatic language detection is enabled
+
+**Steps**:
+
+1. Dutch speaker begins presentation to the chamber
+2. System processes speech as Dutch language
+3. Transcription appears with appropriate Dutch grammar rules
+4. Speaker concludes and English-speaking guest is introduced
+5. System detects language change to English
+6. Transcription seamlessly switches language models
+7. English transcription appears with correct language formatting
+8. Debate returns to Dutch for question period
+9. System switches back to Dutch language processing
+10. All transcription segments are labeled with detected language
+
+**Postconditions**:
+
+- Both Dutch and English segments are accurately transcribed
+- Language changes are detected and handled automatically
+- Each segment is labeled with its language
+- No loss of content during language transitions
+
+## Business Value
+
+### Primary Benefits
+
+- **Accessibility**: Provides immediate text access for hearing-impaired stakeholders
+- **Searchability**: Enables instant search and retrieval of debate content
+- **Documentation**: Creates automatic record of all parliamentary proceedings
+- **Efficiency**: Eliminates manual transcription delays and costs
+- **Transparency**: Supports democratic transparency through immediate public access
+
+### Impact
+
+- Reduces transcription turnaround from days to seconds
+- Enables real-time fact-checking and analysis by staff
+- Supports compliance with accessibility requirements
+- Foundation for all downstream analysis and question extraction
+
+## Priority
+
+**MoSCoW Classification**: **Must Have**
+
+Core functionality essential for the KDAI mission. Without real-time transcription, the system
+cannot provide immediate debate analysis or question extraction.
+
+## Implementation Status
+
+**Status**: Implemented  
+**Version**: 1.0  
+**Last Updated**: 2024-Q4
+
+### Key Milestones
+
+- ✅ Integration with speech recognition service (ATTS)
+- ✅ Real-time processing pipeline
+- ✅ Speaker diarization
+- ✅ Dutch language optimization
+- ✅ Confidence scoring and quality indicators
+
+## Dependencies
+
+### Upstream Dependencies
+
+- [FR-001: Real-time Stream Processing](./fr-001-real-time-stream-processing) - Provides audio input
+
+### Downstream Dependencies
+
+- [FR-003: Question Extraction](./fr-003-question-extraction) - Analyzes transcribed text
+- [FR-004: Transcript Management](./fr-004-transcript-management) - Stores transcriptions
+- [FR-007: Real-time Notifications](./fr-007-real-time-notifications) - Transcription status alerts
+
+### External Dependencies
+
+- Speech recognition service (ATTS)
+- Language models for Dutch and English
+- Speaker identification models
+- Network connectivity for AI service access
+
+## Technical Overview
+
+### High-Level Architecture
+
+The transcription system integrates multiple AI components into a real-time processing pipeline:
+
+**Speech Recognition Engine**: Converts audio segments into text using trained language models
+optimized for Dutch parliamentary language. Processes audio in small chunks to minimize latency
+while maintaining context across segments.
+
+**Speaker Diarization**: Analyzes audio characteristics to identify distinct speakers, assigning
+consistent labels throughout the session and detecting speaker changes in real-time.
+
+**Text Processing Pipeline**: Applies natural language processing to add proper punctuation,
+capitalization, and formatting. Includes custom vocabulary for parliamentary terms, political names,
+and technical terminology.
+
+**Quality Assurance Layer**: Monitors transcription confidence scores, detects potential errors, and
+flags low-confidence segments for manual review. Adapts processing based on audio quality
+conditions.
+
+**Output Management**: Formats transcribed text with timestamps, speaker labels, and metadata.
+Delivers output via WebSocket for real-time display and stores in database for persistence.
+
+### Key Design Principles
+
+- **Real-time First**: Optimized for minimal latency over perfect accuracy
+- **Graceful Degradation**: Maintains service during quality challenges
+- **Context Awareness**: Leverages debate context for accuracy improvement
+- **Observable Quality**: Provides confidence indicators to users
+
+## Related Documentation
+
+- **ATTS Service**: Speech recognition service at `/KDAI-services/ATTS/`
+- **Backend Integration**: Transcription controllers in `/KDAI-backend/app/Http/Controllers/`
+- **Frontend Display**: Real-time transcription components in `/KDAI-frontend/src/components/`
+- **WebSocket Events**: Real-time communication in `/KDAI-backend/app/Events/`
+- **Models**: Transcription data models in `/KDAI-backend/app/Models/Transcript.php`
+
+---
+
+**Document Version**: 2.0  
+**Last Reviewed**: 2025-11-11

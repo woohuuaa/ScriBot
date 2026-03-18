@@ -1,0 +1,181 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for KDAI system
+---
+
+This guide covers common issues encountered during KDAI operation and their solutions.
+
+## Authentication Issues
+
+### Invalid API Key
+
+**Error:** `401 Unauthorized` or `X-API-Key header missing` **Solution:**
+
+- Verify the `STATIC_API_KEY` environment variable is set correctly
+- Ensure the API key header is included in service requests
+- Check that the key matches between services and backend
+
+### Expired Token
+
+**Error:** `401 Unauthorized` with valid-looking token **Solution:**
+
+- Use `POST /api/auth/refresh-token` to get a new token
+- Implement automatic token refresh in frontend application
+
+## Transcription Issues
+
+### Transcription Not Starting
+
+**Error:** `ATTS service is momenteel niet beschikbaar` **Solution:**
+
+- Check ATTS service health: `GET /api/atts/health`
+- Verify Docker containers are running (CSP on port 7010, TS on port 7020)
+- Check Redis connectivity for queue processing
+
+### Segment Processing Failed
+
+**Error:** `Failed to parse segment_id timestamp` **Solution:**
+
+- Verify segment ID format (should be Unix timestamp)
+- Check audio file exists in MinIO storage
+- Review TS service logs for detailed error information
+
+### Transcript Not Appearing
+
+**Error:** No real-time events received **Solution:**
+
+- Verify WebSocket connection to port 8080
+- Check user permissions for the debate
+- Confirm debate is in active transcription state
+
+## Question Extraction Issues
+
+### QES Processing Failed
+
+**Error:** `Error in question extraction job` **Solution:**
+
+- Check LLM service availability (Ollama on port 11434 or external provider)
+- Verify `LLM_API_URL` and `LLM_API_KEY` configuration
+- Ensure transcript text is available for processing
+
+### No Questions Extracted
+
+**Error:** Empty question results **Solution:**
+
+- Check transcript quality and length
+- Verify LLM model is loaded (`mistral-nemo:12b` recommended)
+- Review QES service logs for processing details
+
+## Storage Issues
+
+### File Upload Failed
+
+**Error:** MinIO connection errors **Solution:**
+
+- Verify MinIO credentials in environment variables
+- Check MinIO service on port 9000
+- Ensure proper bucket permissions
+
+### File Not Found
+
+**Error:** `404` when accessing stored files **Solution:**
+
+- Check file path structure: `debates/{debate_id}/transcripts/{segment_id}/`
+- Verify MinIO bucket exists and is accessible
+- Check file upload completed successfully
+
+## Database Issues
+
+### Connection Failed
+
+**Error:** Database connection errors **Solution:**
+
+- Verify PostgreSQL is running on port 5432
+- Check `POSTGRES_*` environment variables
+- Ensure database migrations are up to date
+
+### Permission Denied
+
+**Error:** `403 Forbidden` on resource access **Solution:**
+
+- Verify user authentication and debate participation
+- Check role assignments in `debate_user_roles` table
+- Confirm department access permissions
+
+## Queue Processing Issues
+
+### Jobs Not Processing
+
+**Error:** Queues backing up **Solution:**
+
+- Check Redis connectivity on port 6379
+- Verify queue worker processes are running
+- Monitor queue lengths and processing rates
+
+### Failed Jobs
+
+**Error:** Jobs failing repeatedly **Solution:**
+
+- Review Laravel logs in `storage/logs/laravel.log`
+- Check job retry configuration
+- Verify external service dependencies
+
+## Performance Issues
+
+### Slow Response Times
+
+**Symptoms:** API responses taking \>5 seconds **Solutions:**
+
+- Check database query performance
+- Verify Redis cache is working
+- Monitor external service response times
+- Review server resource utilization
+
+### High Memory Usage
+
+**Symptoms:** Services consuming excessive memory **Solutions:**
+
+- Monitor LLM model memory requirements
+- Check for memory leaks in long-running processes
+- Adjust PHP memory limits if needed
+
+## Monitoring and Logs
+
+### Accessing Logs
+
+- Backend: `storage/logs/laravel.log`
+- Services: Check Docker container logs
+- Database: PostgreSQL logs
+- Redis: Monitor queue statistics
+
+### Health Checks
+
+- System: `GET /api/health`
+- ATTS: `GET /api/atts/health`
+- Database connectivity
+- External service availability
+
+## Common Development Issues
+
+### CORS Errors
+
+**Error:** Cross-origin request blocked **Solution:**
+
+- Configure CORS in Laravel for frontend domain
+- Ensure API calls include proper headers
+
+### Environment Variables
+
+**Error:** Configuration not loading **Solution:**
+
+- Verify `.env` file exists and is readable
+- Check variable naming matches code expectations
+- Restart services after environment changes
+
+### Migration Issues
+
+**Error:** Database schema mismatches **Solution:**
+
+- Run `php artisan migrate` to update schema
+- Check migration status with `php artisan migrate:status`
+- Review migration files for syntax errors

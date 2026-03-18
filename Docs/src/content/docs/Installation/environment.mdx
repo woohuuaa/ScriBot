@@ -1,0 +1,460 @@
+---
+title: Environment Configuration
+description: Comprehensive guide to configuring environment variables for all KDAI components
+---
+
+KDAI uses environment variables to configure all components. This guide covers all configuration
+options across the backend, frontend, and services.
+
+## Configuration Files
+
+### Location
+
+- `KDAI-DockerCompose/.env` - Docker Compose configuration
+- `KDAI-backend/.env` - Laravel backend configuration
+- `KDAI-services/.env` - Services configuration
+- `KDAI-frontend/.env` - Frontend configuration (optional)
+
+### Setup
+
+Each component includes a `.env.example` file. Copy and customize:
+
+```bash
+cp .env.example .env
+```
+
+:::caution Never commit `.env` files to version control! They contain sensitive credentials. :::
+
+## Backend Configuration
+
+Located at `KDAI-backend/.env`
+
+### Application Settings
+
+```bash
+# Application Name
+APP_NAME="KDAI"
+
+# Environment: local, production, staging
+APP_ENV=local
+
+# Application Key (generate with: php artisan key:generate)
+APP_KEY=base64:your_generated_key_here
+
+# Debug Mode (disable in production!)
+APP_DEBUG=true
+
+# Application URL
+APP_URL=http://localhost
+
+# Frontend URL (for CORS)
+FRONTEND_URL=http://localhost:8001
+```
+
+:::tip Generate a new application key with:
+
+```bash
+docker compose exec backend php artisan key:generate
+```
+
+:::
+
+### Database Configuration
+
+```bash
+# Database Connection
+DB_CONNECTION=pgsql
+DB_HOST=postgres
+DB_PORT=5432
+DB_DATABASE=kdai
+DB_USERNAME=kdai_user
+DB_PASSWORD=your_secure_password_here
+
+# Connection Options
+DB_SSLMODE=prefer
+DB_CHARSET=utf8
+```
+
+:::note `DB_HOST=postgres` refers to the Docker Compose service name. When running locally without
+Docker, use `localhost`. :::
+
+### Storage Configuration (MinIO)
+
+```bash
+# Filesystem Driver
+FILESYSTEM_DISK=s3
+
+# MinIO Configuration (S3-compatible)
+AWS_ACCESS_KEY_ID=admin
+AWS_SECRET_ACCESS_KEY=your_minio_password
+AWS_DEFAULT_REGION=us-east-1
+AWS_BUCKET=kdai-storage
+AWS_ENDPOINT=http://minio:9000
+AWS_USE_PATH_STYLE_ENDPOINT=true
+
+# Public URL for accessing files
+AWS_URL=http://localhost:9000/kdai-storage
+```
+
+### Queue Configuration
+
+```bash
+# Queue Driver: sync, database, redis
+QUEUE_CONNECTION=database
+
+# Redis Configuration (if using redis)
+REDIS_HOST=redis
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+```
+
+### Cache Configuration
+
+```bash
+# Cache Driver: file, redis, database
+CACHE_DRIVER=file
+
+# Session Driver
+SESSION_DRIVER=file
+SESSION_LIFETIME=120
+```
+
+### Mail Configuration
+
+```bash
+# Mail Driver
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_ENCRYPTION=null
+MAIL_FROM_ADDRESS="noreply@kdai.app"
+MAIL_FROM_NAME="${APP_NAME}"
+```
+
+### Services Configuration
+
+```bash
+# ATTS Service
+ATTS_SERVICE_URL=http://atts:8001
+ATTS_API_KEY=your_atts_api_key
+
+# TCS Service
+TCS_SERVICE_URL=http://tcs:8002
+TCS_WEBSOCKET_URL=ws://tcs:8002
+
+# QES Service
+QES_SERVICE_URL=http://qes:8003
+QES_API_KEY=your_qes_api_key
+
+# Static API Key for service-to-service communication
+STATIC_API_KEY=your_static_api_key_here
+```
+
+### Broadcasting Configuration
+
+```bash
+# Broadcast Driver: pusher, redis, null
+BROADCAST_DRIVER=pusher
+
+
+# Or use Laravel Reverb (self-hosted)
+REVERB_APP_ID=kdai
+REVERB_APP_KEY=your_reverb_key
+REVERB_APP_SECRET=your_reverb_secret
+REVERB_HOST=localhost
+REVERB_PORT=8080
+```
+
+### Logging
+
+```bash
+# Log Channel: stack, single, daily, slack
+LOG_CHANNEL=stack
+LOG_LEVEL=debug
+
+# Slack Logging (optional)
+LOG_SLACK_WEBHOOK_URL=your_slack_webhook
+```
+
+## Services Configuration
+
+Located at `KDAI-services/.env`
+
+### General Settings
+
+```bash
+# Environment
+ENVIRONMENT=development
+
+# API Configuration
+API_KEY=your_static_api_key_here
+
+# Backend URL
+BACKEND_URL=http://backend:8000
+```
+
+### ATTS Configuration
+
+```bash
+# ATTS Service Port
+ATTS_PORT=8001
+
+# Audio Processing
+ATTS_SEGMENT_DURATION=10
+ATTS_SAMPLE_RATE=16000
+
+# M3U8 Processing
+ATTS_STREAM_TIMEOUT=30
+ATTS_MAX_RETRIES=3
+```
+
+### TCS Configuration
+
+```bash
+# TCS Service Port
+TCS_PORT=8002
+
+# Whisper Model Configuration
+WHISPER_MODEL=base
+# Options: tiny, base, small, medium, large, large-v2, large-v3
+
+# Device Configuration
+WHISPER_DEVICE=cuda
+# Options: cuda (GPU), cpu
+
+# Processing Options
+WHISPER_LANGUAGE=nl
+# Leave empty for auto-detection
+
+# Silence Detection
+SILENCE_THRESHOLD=-40
+SILENCE_DURATION=2.0
+
+# WebSocket Configuration
+WS_HOST=0.0.0.0
+WS_PORT=8002
+```
+
+:::tip Model sizes and performance:
+
+- `tiny`: Fastest, lowest accuracy (~1GB RAM)
+- `base`: Good balance (~1GB RAM) - Recommended for GPU
+- `small`: Better accuracy (~2GB RAM)
+- `medium`: High accuracy (~5GB RAM)
+- `large-v3`: Best accuracy (~10GB RAM) :::
+
+### QES Configuration
+
+```bash
+# QES Service Port
+QES_PORT=8003
+
+# LLM Configuration
+LLM_MODEL=gpt-3.5-turbo
+LLM_API_KEY=your_openai_api_key
+
+# Or use local model
+LLM_TYPE=local
+LLM_MODEL_PATH=/models/question-extraction
+
+# Processing Options
+QES_BATCH_SIZE=10
+QES_CONFIDENCE_THRESHOLD=0.7
+
+# Question Classification
+QES_ENABLE_CLASSIFICATION=true
+```
+
+### GPU Configuration
+
+```bash
+# CUDA Settings
+CUDA_VISIBLE_DEVICES=0
+PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+
+# GPU Memory Management
+GPU_MEMORY_FRACTION=0.9
+```
+
+## Docker Compose Configuration
+
+Located at `KDAI-DockerCompose/.env`
+
+### PostgreSQL
+
+```bash
+# PostgreSQL Configuration
+POSTGRES_DB=kdai
+POSTGRES_USER=kdai_user
+POSTGRES_PASSWORD=your_secure_db_password
+POSTGRES_PORT=5432
+```
+
+### MinIO
+
+```bash
+# MinIO Root Credentials
+MINIO_ROOT_USER=admin
+MINIO_ROOT_PASSWORD=your_secure_minio_password
+
+# MinIO Ports
+MINIO_API_PORT=9000
+MINIO_CONSOLE_PORT=9001
+
+# Default Bucket
+MINIO_DEFAULT_BUCKETS=kdai-storage
+```
+
+### Service Ports
+
+```bash
+# Backend
+BACKEND_PORT=8000
+
+# Frontend
+FRONTEND_PORT=3000
+
+# Services
+ATTS_PORT=8001
+TCS_PORT=8002
+QES_PORT=8003
+```
+
+## Frontend Configuration
+
+Located at `KDAI-frontend/.env` (optional)
+
+```bash
+# API Endpoint
+VITE_API_BASE_URL=http://localhost:8001
+
+# WebSocket Configuration
+VITE_REVERB_APP_KEY=your_reverb_app_key
+VITE_WS_PATH=/app
+
+# Application Name
+VITE_APP_NAME=KDAI
+
+# Enable Debug
+VITE_DEBUG=true
+```
+
+## Generating Secure Values
+
+```bash
+# Generate secure password
+openssl rand -base64 32
+
+# Generate API key
+openssl rand -hex 32
+
+# Generate Laravel application key
+docker compose exec backend php artisan key:generate
+```
+
+## Validation
+
+### Check Configuration
+
+Verify backend configuration:
+
+```bash
+docker compose exec backend php artisan config:show
+```
+
+### Test Database Connection
+
+```bash
+docker compose exec backend php artisan db:show
+```
+
+### Test Storage Connection
+
+```bash
+docker compose exec backend php artisan storage:link
+```
+
+## Troubleshooting
+
+### Configuration Cached
+
+If changes don't take effect, clear the cache:
+
+```bash
+docker compose exec backend php artisan config:clear
+docker compose exec backend php artisan cache:clear
+```
+
+### Environment Variables Not Loading
+
+Restart the container after changing `.env`:
+
+```bash
+docker compose restart backend
+```
+
+### Database Connection Failed
+
+Verify credentials match between:
+
+- `KDAI-DockerCompose/.env` (PostgreSQL settings)
+- `KDAI-backend/.env` (Database connection)
+
+### MinIO Connection Failed
+
+Ensure MinIO is running and credentials are correct:
+
+```bash
+docker compose ps minio
+docker compose logs minio
+```
+
+## Complete Example Configurations
+
+### Development Setup
+
+**KDAI-backend/.env:**
+
+```bash
+APP_ENV=local
+APP_DEBUG=true
+APP_KEY=base64:generated_key
+APP_URL=http://localhost
+FRONTEND_URL=http://localhost:8001
+
+DB_CONNECTION=pgsql
+DB_HOST=postgres
+DB_PORT=5432
+DB_DATABASE=kdai
+DB_USERNAME=kdai_user
+DB_PASSWORD=dev_password
+
+# MinIO Configuration (S3-compatible)
+AWS_ENDPOINT=http://minio:9000
+AWS_BUCKET=kdai-storage
+AWS_ACCESS_KEY_ID=admin
+AWS_SECRET_ACCESS_KEY=minio_password
+
+STATIC_API_KEY=dev_static_key
+```
+
+**KDAI-services/.env:**
+
+```bash
+ENVIRONMENT=development
+API_KEY=dev_static_key
+BACKEND_URL=http://backend:8000
+
+WHISPER_MODEL=base
+WHISPER_DEVICE=cuda
+TCS_PORT=8002
+```
+
+## Next Steps
+
+- [Quick Start Guide](/getting-started/quick-start/)
+- [Backend Details](/components/backend/)
+- [Services Configuration](/services/atts/)
+- [Production Deployment](/deployment/production/)

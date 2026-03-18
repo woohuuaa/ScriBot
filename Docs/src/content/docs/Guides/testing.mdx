@@ -1,0 +1,399 @@
+---
+title: Testing Guidelines
+description: Testing practices for backend, frontend, and integration tests
+---
+
+This guide covers testing practices for the KDAI system, including unit tests, feature tests, and
+integration testing.
+
+## Backend Testing (PHPUnit)
+
+### Test Structure
+
+Tests are organized in `tests/` directory:
+
+```
+tests/
+├── Feature/     # HTTP endpoint tests
+├── Unit/        # Class/method unit tests
+└── TestCase.php # Base test case
+```
+
+### Running Tests
+
+**Run all tests:**
+
+```bash
+cd KDAI-backend
+./vendor/bin/phpunit
+```
+
+**Run specific test suite:**
+
+```bash
+./vendor/bin/phpunit --testsuite Unit
+./vendor/bin/phpunit --testsuite Feature
+```
+
+**Run single test:**
+
+```bash
+./vendor/bin/phpunit tests/Feature/AuthTest.php
+```
+
+### Test Configuration
+
+**phpunit.xml** configures:
+
+- Test suites: Unit and Feature
+- Environment: `APP_ENV=testing`
+- Database: In-memory SQLite (commented out, uses same DB)
+- Cache/Queue: Array drivers for speed
+
+### Writing Unit Tests
+
+**Example Unit Test:**
+
+```php
+<?php
+
+namespace Tests\Unit;
+
+use Tests\TestCase;
+use App\Services\DebateService;
+
+class DebateServiceTest extends TestCase
+{
+    public function test_debate_creation()
+    {
+        $service = new DebateService();
+        $debate = $service->createDebate(['title' => 'Test Debate']);
+
+        $this->assertEquals('Test Debate', $debate->title);
+    }
+}
+```
+
+### Writing Feature Tests
+
+**Example API Test:**
+
+```php
+<?php
+
+namespace Tests\Feature;
+
+use Tests\TestCase;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+class AuthTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_user_can_login()
+    {
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => bcrypt('password'),
+        ]);
+
+        $response = $this->postJson('/api/auth/login', [
+            'email' => 'test@example.com',
+            'password' => 'password',
+        ]);
+
+        $response->assertStatus(200)
+                ->assertJsonStructure(['user', 'token']);
+    }
+}
+```
+
+### Testing Best Practices
+
+**Database Testing:**
+
+- Use `RefreshDatabase` trait for clean state
+- Use factories for test data creation
+- Test migrations with separate test database
+
+**API Testing:**
+
+- Test JSON responses with `assertJsonStructure`
+- Test authentication with Sanctum tokens
+- Test validation errors
+
+**Mocking:**
+
+- Mock external services (MinIO, Redis, LLM)
+- Use `Mockery` for complex mocks
+
+## Frontend Testing (Vitest)
+
+### Setup
+
+Install Vitest for Vue 3 + TypeScript testing:
+
+```bash
+cd KDAI-frontend
+npm install -D vitest @vue/test-utils jsdom
+```
+
+**vitest.config.ts:**
+
+```typescript
+import { defineConfig } from 'vitest/config';
+import vue from '@vitejs/plugin-vue';
+
+export default defineConfig({
+  plugins: [vue()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+  },
+});
+```
+
+**package.json scripts:**
+
+```json
+{
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  }
+}
+```
+
+### Writing Component Tests
+
+**Example Component Test:**
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { mount } from '@vue/test-utils';
+import BaseButton from '@/components/misc/BaseButton.vue';
+
+describe('BaseButton', () => {
+  it('renders slot content', () => {
+    const wrapper = mount(BaseButton, {
+      slots: { default: 'Click me' },
+    });
+    expect(wrapper.text()).toContain('Click me');
+  });
+
+  it('emits click event', async () => {
+    const wrapper = mount(BaseButton);
+    await wrapper.trigger('click');
+    expect(wrapper.emitted('click')).toBeTruthy();
+  });
+});
+```
+
+### Writing Service Tests
+
+**Example Service Test:**
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { debateService } from '@/services/debateService';
+import RequestSender from '@/services/requestService';
+
+vi.mock('@/services/requestService');
+
+describe('debateService', () => {
+  it('fetches debates successfully', async () => {
+    const mockResponse = { data: [{ id: '1', title: 'Test Debate' }] };
+    vi.mocked(RequestSender.send).mockResolvedValue(mockResponse);
+
+    const result = await debateService.getDebates();
+    expect(result.data).toEqual(mockResponse.data);
+  });
+
+  it('handles API errors', async () => {
+    const mockError = { status: 500, message: 'Server error' };
+    vi.mocked(RequestSender.send).mockRejectedValue(mockError);
+
+    const result = await debateService.getDebates();
+    expect(result.error).toEqual(mockError);
+  });
+});
+```
+
+### Testing Utilities
+
+**Test Setup (src/test/setup.ts):**
+
+```typescript
+import { beforeAll } from 'vitest';
+
+// Mock Axios
+vi.mock('axios', () => ({
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
+// Mock Laravel Echo
+vi.mock('laravel-echo', () => ({
+  default: vi.fn(),
+}));
+```
+
+## Integration Testing
+
+### Docker-Based Integration Tests
+
+**Test script for full system:**
+
+```bash
+#!/bin/bash
+# test-integration.sh
+
+# Start services
+docker compose up -d
+
+# Wait for services
+sleep 30
+
+# Run API tests against running containers
+cd KDAI-backend
+./vendor/bin/phpunit --testsuite Integration
+
+# Run E2E tests
+cd ../KDAI-frontend
+npm run test:e2e
+
+# Cleanup
+docker compose down
+```
+
+### Service Integration Tests
+
+**Test Redis queue processing:**
+
+```php
+public function test_redis_queue_processing()
+{
+    // Push message to queue
+    Redis::lpush('test_queue', json_encode(['test' => 'data']));
+
+    // Process queue
+    Artisan::call('queue:work', ['--once' => true]);
+
+    // Assert processing completed
+    $this->assertEquals(0, Redis::llen('test_queue'));
+}
+```
+
+**Test MinIO file operations:**
+
+```php
+public function test_minio_file_upload()
+{
+    Storage::put('test/file.txt', 'content');
+
+    $this->assertTrue(Storage::exists('test/file.txt'));
+    $this->assertEquals('content', Storage::get('test/file.txt'));
+}
+```
+
+## Testing Strategy Rationale
+
+### Why PHPUnit for Backend
+
+- **Laravel Integration**: Built-in testing helpers for HTTP, database, queues
+- **Database Testing**: RefreshDatabase trait ensures clean state
+- **Mocking**: Mockery for external dependencies
+- **CI/CD**: Easy integration with GitHub Actions
+
+### Why Vitest for Frontend
+
+- **Vite Integration**: Same build tool, fast HMR
+- **Vue 3 Support**: @vue/test-utils for component testing
+- **TypeScript**: Full type checking in tests
+- **ESM Support**: Modern module system
+
+### Why Separate Test Environments
+
+- **Isolation**: Tests don't affect development/production data
+- **Performance**: In-memory databases, array caches
+- **Reliability**: Controlled external service mocks
+
+## CI/CD Testing
+
+### GitHub Actions Example
+
+```yaml
+name: Tests
+on: [push, pull_request]
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: Install dependencies
+        run: composer install
+      - name: Run tests
+        run: ./vendor/bin/phpunit
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Run tests
+        run: npm run test
+```
+
+## Coverage Requirements
+
+- **Backend**: Aim for 80%+ coverage on business logic
+- **Frontend**: Focus on component logic, service methods
+- **Critical Paths**: 100% coverage on authentication, payment, data processing
+
+## Debugging Test Failures
+
+### Common Issues
+
+**Database State:**
+
+```bash
+# Reset database between tests
+php artisan migrate:fresh --seed
+```
+
+**Redis Connection:**
+
+```php
+// Use separate Redis database for testing
+REDIS_DB=1
+```
+
+**File Permissions:**
+
+```bash
+# Ensure storage directories are writable
+chmod -R 775 storage/
+```
+
+**Mock Reset:**
+
+```php
+$this->tearDown();
+Mockery::close();
+```

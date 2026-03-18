@@ -1,0 +1,185 @@
+---
+title: FR-009 - Realtime Multi-User Working
+description: Allow multiple users to work on the application at the same time and receive updates
+---
+
+## Overview
+
+Real-time Multi-User Working enables multiple department staff members to collaborate on monitoring
+debates, reviewing transcripts, and processing questions simultaneously, with changes automatically
+synchronized across all connected clients for seamless teamwork during live parliamentary sessions.
+
+## Actors
+
+- **Department Staff** - Simultaneously monitor debates, annotate transcripts, and categorize
+  questions directed at their ministry
+- **Policy Officer** - Analyze extracted questions in real-time and draft response briefings while
+  debates are active
+- **Department Coordinator** - Oversee team collaboration on question responses, ensure consistent
+  information across all staff members
+- **Question Editor** - Review and edit extracted questions collaboratively with colleagues during
+  live debates
+
+## Use Cases
+
+### UC-9.1: Collaborative Question Review
+
+Multiple department staff members simultaneously review extracted questions from a debate, each
+categorizing questions by relevance and assigning them to appropriate policy experts while seeing
+each other's work in real-time.
+
+### UC-9.2: Live Transcript Annotation
+
+During an active parliamentary debate, three department staff members simultaneously highlight
+different transcript sections, add notes about potential ministry questions, and flag important
+moments without conflicting with each other's edits.
+
+### UC-9.3: Concurrent Response Drafting
+
+Two policy officers work on different sections of a ministry briefing document simultaneously, with
+their changes instantly visible to each other, enabling seamless coordination without version
+conflicts.
+
+## Scenarios
+
+### Scenario 1: Multi-User Question Categorization
+
+**Preconditions:**
+
+- Five new questions extracted from ongoing debate, potentially directed at the ministry
+- Three department staff members viewing the same debate screen
+- All users have edit permissions for questions
+
+**Steps:**
+
+1. User A selects question #1, changes topic from "Uncategorized" to "Healthcare"
+2. Question #1 instantly updates on User B and User C's screens
+3. User B simultaneously edits question #2, adds note "Requires minister approval"
+4. User B's changes appear immediately for Users A and C
+5. User C deletes question #3 (duplicate)
+6. Deleted question disappears from all three screens within 2 seconds
+7. Users A and B continue editing remaining questions without conflicts
+
+**Postconditions:**
+
+- All five questions categorized and annotated
+- All users see identical current state
+- No edits lost or overwritten
+- Audit log shows all three users' contributions
+
+### Scenario 2: Simultaneous Edit Conflict
+
+**Preconditions:**
+
+- Question #42 exists with text "What is the budget for project X?"
+- Users A and B both have edit permissions
+- Both users viewing same debate screen
+
+**Steps:**
+
+1. User A clicks edit on question #42 text field
+2. User B simultaneously clicks edit on same question #42 text field
+3. User A changes text to "What is the timeline for project X?" and saves
+4. User B changes text to "What is the allocated funding for project X?" and saves
+5. User B's request arrives at server 200ms after User A's
+6. Server accepts User B's edit (last-write-wins)
+7. Both users now see "What is the allocated funding for project X?"
+8. User A's edit is silently overwritten (no warning given)
+
+**Postconditions:**
+
+- Question displays User B's version
+- User A's edit lost without notification
+- Audit log shows both edits with timestamps
+- Users may not realize conflict occurred
+
+### Scenario 3: Connection Recovery
+
+**Preconditions:**
+
+- User viewing active debate with real-time sync enabled
+- WebSocket connection established and stable
+- Three other users actively editing questions
+
+**Steps:**
+
+1. User's internet connection drops for 30 seconds
+2. WebSocket disconnects (user unaware)
+3. Other users make 5 edits to questions during disconnection
+4. User's connection restores
+5. WebSocket reconnects automatically
+6. System does not replay missed updates
+7. User sees stale data until manual page refresh
+8. After refresh, user sees current state
+
+**Postconditions:**
+
+- User eventually sees correct data after refresh
+- Temporary data inconsistency occurred
+- No automatic recovery for missed updates
+
+## Business Value
+
+Enables distributed ministry teams to collaborate effectively during live parliamentary debates,
+eliminating bottlenecks where staff must wait for colleagues to finish editing before contributing
+their own input, significantly improving response preparation times during time-sensitive
+situations.
+
+## Priority
+
+Medium (Could)
+
+## Implementation Status
+
+🔄 **Partial** - Core real-time synchronization and optimistic updates implemented using TanStack DB
+and WebSockets, but conflict resolution and presence awareness features remain unimplemented.
+
+## Dependencies
+
+- [FR-007: Real-time Notifications](/design/features/fr-007-real-time-notifications) - WebSocket
+  infrastructure for broadcasting updates
+- [FR-004: Transcript Management](/design/features/fr-004-transcript-management) - Transcript
+  editing capabilities
+- [FR-003: Question Extraction](/design/features/fr-003-question-extraction) - Question data model
+  and management
+- [FR-005: User Management](/design/features/fr-005-user-management) - User authentication and
+  authorization
+
+## Technical Overview
+
+The system uses bidirectional synchronization: client-initiated changes (user edits) flow through
+mutation handlers to the backend API, which persists to the database and broadcasts WebSocket events
+to all connected clients. Server events are applied to local state via write APIs, keeping all
+clients synchronized.
+
+### Key Design Principles
+
+- **Optimistic Updates** - UI reflects changes immediately before server confirmation for responsive
+  feel
+- **Event-Driven Sync** - WebSocket broadcasts ensure all clients receive updates without polling
+- **Last-Write-Wins** - Simple conflict resolution where most recent edit prevails (current
+  limitation)
+- **Automatic Rollback** - Failed API requests automatically revert optimistic updates
+- **Collection-Based State** - TanStack DB collections manage local state with sync handlers
+
+### Current Limitations
+
+- **No Conflict Detection** - Simultaneous edits to same field result in silent data loss for first
+  editor
+- **No Presence Awareness** - Users cannot see who else is viewing or editing content
+- **No Reconnection Recovery** - Disconnected users miss updates until manual refresh
+- **No Field Locking** - No mechanism to reserve fields during editing
+
+### Implementation References
+
+- Frontend sync composables: `KDAI-frontend/src/composables/useDebateQuestionsSync.ts`
+- Collection schemas: `KDAI-frontend/src/db/schema.ts`
+- Backend broadcast events: `KDAI-backend/app/Events/DebateQuestionUpdatedEvent.php`
+- WebSocket controller: `KDAI-backend/app/Http/Controllers/DebateQuestionController.php`
+
+## Related Documentation
+
+- [FR-003: Question Extraction](/design/features/fr-003-question-extraction)
+- [FR-004: Transcript Management](/design/features/fr-004-transcript-management)
+- [FR-007: Real-time Notifications](/design/features/fr-007-real-time-notifications)
+- [FR-010: Dossier Building](/design/features/fr-010-dossier-building)

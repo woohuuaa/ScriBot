@@ -1,0 +1,262 @@
+---
+title: Production Deployment
+description: Deploy KDAI to production environments
+---
+
+This guide covers deploying KDAI to production with security best practices.
+
+## Pre-deployment Checklist
+
+### Security
+
+- [ ] Change all default passwords
+- [ ] Generate new APP_KEY for Laravel
+- [ ] Generate secure STATIC_API_KEY
+- [ ] Configure CORS properly
+- [ ] Review exposed ports
+
+### Configuration
+
+- [ ] Set APP_ENV=production
+- [ ] Disable APP_DEBUG
+- [ ] Configure production database
+- [ ] Set up MinIO with secure credentials
+- [ ] Configure Redis for production
+- [ ] Set up logging
+
+### Infrastructure
+
+- [ ] Configure backup strategy
+- [ ] Set up health checks
+
+## Environment Configuration
+
+### Production Environment Variables
+
+```bash
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=base64:...  # Generate with: php artisan key:generate
+
+# Use strong, unique passwords
+POSTGRES_PASSWORD=...
+MINIO_ROOT_PASSWORD=...
+STATIC_API_KEY=...
+```
+
+### Security Best Practices
+
+- Use environment-specific .env files
+- Never commit .env to version control
+- Rotate credentials regularly
+- Use different keys for each environment
+
+## Database Management
+
+### PostgreSQL Backup Strategy
+
+- Daily full backups using `pg_dump`
+- Transaction log archiving
+- Test restore procedures regularly
+- Store backups off-site
+
+Example backup command:
+
+```bash
+pg_dump -h postgres -U kdai_user kdai > backup_$(date +%Y%m%d).sql
+```
+
+### Monitoring
+
+- Connection pool usage
+- Query performance
+- Database size growth
+
+## Storage Management
+
+### MinIO Backup Strategy
+
+- Replication to secondary MinIO cluster or backup storage
+- Regular backup verification
+
+## Application Optimization
+
+### Laravel Optimization
+
+```bash
+# Cache configuration
+php artisan config:cache
+
+# Cache routes
+php artisan route:cache
+
+# Cache views
+php artisan view:cache
+
+# Optimize autoloader
+composer install --optimize-autoloader --no-dev
+```
+
+### Runtime Settings
+
+- OPcache enabled (PHP)
+- Redis for cache and sessions
+- Queue workers for background jobs
+
+### Frontend Optimization
+
+- Minification enabled
+- Tree-shaking
+- Code splitting
+- Asset compression (gzip/brotli)
+
+## Monitoring & Logging
+
+### Application Monitoring
+
+**Metrics to Track**:
+
+- Request rate and latency
+- Error rate
+- Database query performance
+- WebSocket connection count
+- Memory and CPU usage
+
+### Log Management
+
+**Log Levels**:
+
+- Production: ERROR and above
+- Staging: WARNING and above
+
+**Best Practices**:
+
+- Centralized logging
+- Log rotation and retention
+
+### Alerting
+
+**Alert on**:
+
+- Service downtime
+- High error rates
+- Database connection failures
+- Disk space warnings
+- Memory/CPU thresholds
+
+## Security Hardening
+
+### Network Security
+
+**Firewall Rules**:
+
+- Only expose necessary ports (80, 443)
+- Restrict database access to application servers
+- Block direct access to internal services
+
+**Rate Limiting**:
+
+- Configure at reverse proxy level
+- Connection limits
+- Request size limits
+
+### Application Security
+
+**Security Headers**:
+
+- X-Frame-Options
+- X-Content-Type-Options
+- X-XSS-Protection
+- Content-Security-Policy
+- Strict-Transport-Security
+
+**Input Validation**:
+
+- Validate all inputs
+- Sanitize user-generated content
+- Use parameterized queries
+- Escape output
+
+### Access Control
+
+- Service accounts with minimal permissions
+- Separate credentials per service
+- No root access for applications
+
+## Backup & Recovery
+
+### Backup Strategy
+
+**What to Backup**:
+
+- PostgreSQL database (daily)
+- MinIO data (continuous replication)
+- Environment configurations
+
+**Backup Testing**:
+
+- Monthly restore tests
+- Document restore procedures
+
+### Disaster Recovery
+
+**Recovery Steps**:
+
+1. Assess extent of failure
+2. Activate backup systems
+3. Restore from backups
+4. Verify data integrity
+5. Resume operations
+
+## Maintenance
+
+### Regular Tasks
+
+**Weekly**:
+
+- Review performance metrics
+- Check backup success
+- Update security patches
+
+**Monthly**:
+
+- Test disaster recovery
+- Capacity planning review
+
+### Update Strategy
+
+**Rolling Updates**:
+
+- Update one instance at a time
+- Verify health before proceeding
+- Quick rollback capability
+
+## Troubleshooting
+
+### Performance Issues
+
+**Slow API Responses**:
+
+- Check database query performance
+- Review cache hit rates
+- Check backend resource usage
+
+**WebSocket Disconnections**:
+
+- Check Reverb server logs
+- Review load balancer timeout settings
+- Check connection limits
+
+### Service Failures
+
+**Backend Not Responding**:
+
+- Check container/process status
+- Review application logs
+- Verify database connectivity
+
+**Transcription Service Down**:
+
+- Review TCS logs
+- Verify MinIO connectivity
+- Check model file integrity

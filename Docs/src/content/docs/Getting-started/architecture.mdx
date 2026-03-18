@@ -1,0 +1,445 @@
+---
+title: Architecture Overview
+description: Understanding the KDAI system architecture and component interactions
+---
+
+import { MermaidChart } from '../../../components/MermaidChart';
+
+## System Architecture
+
+KDAI processes live parliamentary debate streams, transcribes them in real-time, and extracts
+questions using AI. The system integrates all processing logic within the Laravel backend for
+streamlined operation.
+
+## High-Level Architecture
+
+### Production Architecture
+
+<MermaidChart client:only="react" chartDefinition={`graph TB
+    Browser[User Browser]
+    Frontend[kdai-frontend Vue SPA]
+    Backend[kdai-backend Laravel + AI Processing]
+
+    ATTS_CSP[kdai-atts-csp Stream Processor]
+    WhisperLive[WhisperLive Server]
+
+    Postgres[(postgresql Database)]
+    MinIO[(kdai-minio Storage)]
+    Redis[(kdai-redis Cache/Queue)]
+
+    Browser -->|HTTPS| Frontend
+    Frontend -->|API calls| Backend
+    Backend -->|WebSocket Reverb| Browser
+
+    Backend --> Postgres
+    Backend --> MinIO
+    Backend --> Redis
+
+    Backend -->|start/stop commands| Redis
+    Redis --> ATTS_CSP
+    ExtStream[External Parliamentary Stream] -->|M3U8 Audio| ATTS_CSP
+    ATTS_CSP -->|WebSocket Audio Stream| WhisperLive
+    WhisperLive -->|Transcription Stream| ATTS_CSP
+    ATTS_CSP -->|Redis Queue ts_segment_complete| Backend
+
+    classDef production fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef infrastructure fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef data fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+
+    class Browser,Frontend production
+    class Backend,ATTS_CSP,WhisperLive production
+    class Postgres,MinIO,Redis data
+    class ExtStream infrastructure
+
+`} />
+
+### Development Architecture
+
+<MermaidChart client:only="react" chartDefinition={`graph TB
+    Browser[User Browser]
+    Frontend[kdai-frontend Vue SPA]
+    Backend[kdai-backend Laravel + AI Processing]
+
+    ATTS_CSP[kdai-atts-csp Stream Processor]
+    WhisperLive[WhisperLive Server]
+    Emulator[kdai-m3u8-emulator Dev Stream]
+
+    Postgres[(postgresql Database)]
+    MinIO[(kdai-minio Storage)]
+    Redis[(kdai-redis Cache/Queue)]
+
+    Browser -->|HTTPS| Frontend
+    Frontend -->|API calls| Backend
+    Backend -->|WebSocket Reverb| Browser
+
+    Backend --> Postgres
+    Backend --> MinIO
+    Backend --> Redis
+
+    Backend -->|start/stop commands| Redis
+    Redis --> ATTS_CSP
+    Emulator -->|M3U8 Audio| ATTS_CSP
+    ATTS_CSP -->|WebSocket Audio Stream| WhisperLive
+    WhisperLive -->|Transcription Stream| ATTS_CSP
+    ATTS_CSP -->|Redis Queue ts_segment_complete| Backend
+
+    classDef production fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef infrastructure fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef data fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef dev fill:#fff3e0,stroke:#e65100,stroke-width:2px,stroke-dasharray: 5 5
+
+    class Browser,Frontend production
+    class Backend,ATTS_CSP,WhisperLive production
+    class Postgres,MinIO,Redis data
+    class Emulator dev
+
+`} />
+
+## Core Components
+
+### Frontend (kdai-frontend)
+
+- **Port**: 5173 (dev), 80 (production)
+- **Purpose**: Vue 3 SPA for viewing debates and transcripts
+- **Communication**: REST API + WebSocket (Laravel Reverb)
+- **Tech**: Vue 3, TypeScript, Vite, Tailwind CSS
+- **Routes**: Dutch language paths (/debat, /ministerie, /zaal)
+
+### Backend (kdai-backend)
+
+- **Port**: 8001 (Nginx proxy), 8000 (Laravel), 8081 (Reverb)
+- **Purpose**: Laravel API server with integrated AI processing
+- **Database**: PostgreSQL 18
+- **Storage**: MinIO S3-compatible object storage
+- **Cache/Queue**: Valkey (Redis 9.0)
+- **WebSocket**: Laravel Reverb on port 8081, proxied via Nginx on port 8001
+- **AI Processing**: Integrated LLM for question extraction
+
+### ATTS Services
+
+#### kdai-atts-csp (Continuous Stream Processor)
+
+- **Port**: 7010
+- **Purpose**: Real-time M3U8 stream transcription with direct audio streaming
+- **Tech**: Python, FFmpeg, WhisperLive WebSocket integration
+- **Process**:
+  - Connects to M3U8 streams via FFmpeg
+  - Extracts and converts audio to 16kHz mono float32 in real-time
+  - Streams audio directly to WhisperLive via WebSocket (no file storage)
+  - Receives transcription segments from WhisperLive
+  - Buffers and deduplicates transcription segments
+  - Sends completed segments to backend via Redis queue (`ts_segment_complete`)
+
+#### WhisperLive Server
+
+- **Port**: 9090
+- **Purpose**: Real-time speech recognition
+- **Tech**: OpenAI Whisper implementation
+- **Features**:
+  - Real-time audio processing
+  - Multiple language support
+  - Segment-based corrections
+
+#### kdai-m3u8-emulator (Development Only)
+
+- **Port**: 6969 (external), 2121 (internal)
+- **Purpose**: Simulates parliamentary M3U8 streams for development
+- **Tech**: Python, HLS streaming
+- **Usage**: Development and testing environment only
+
+## Real-time Transcription Flow
+
+<MermaidChart client:only="react" chartDefinition={`sequenceDiagram
+    participant User
+    participant Backend as kdai-backend
+    participant Redis
+    participant CSP as kdai-atts-csp
+    participant Stream as M3U8 Stream
+    participant WhisperLive
+    participant DB as postgresql
+
+    User->>Backend: Start Debate
+    Backend->>Redis: Start capture command
+    Backend->>DB: Create debate record
+
+    Redis->>CSP: Process stream request
+    CSP->>Stream: Connect FFmpeg to M3U8
+    CSP->>WhisperLive: Connect WebSocket + config
+
+    loop Real-time Streaming
+        Stream->>CSP: HLS audio chunks
+        CSP->>WhisperLive: Stream audio (WebSocket)
+        WhisperLive->>CSP: Transcription segments
+        CSP->>CSP: Buffer & deduplicate segments
+        CSP->>Redis: Push to ts_segment_complete queue
+        Backend->>Redis: Pull from queue
+        Backend->>Backend: Apply filtering & AI processing
+        Backend->>DB: Save transcript & questions
+        Backend->>User: Reverb WebSocket updates
+    end
+
+    User->>Backend: Stop Debate
+    Backend->>Redis: Stop capture command
+    Redis->>CSP: Stop processing
+    CSP->>WhisperLive: Close WebSocket
+    CSP->>Stream: Stop FFmpeg
+
+`} />
+
+## TanStack DB Data Flow
+
+The frontend uses **TanStack DB** collections for local-first state management with bidirectional
+synchronization. Collections provide reactive, type-safe data access with optimistic updates.
+
+**Architecture:**
+
+- **9 Active Collections**: Debates, questions, segments, departments, rooms, topics, parties,
+  users, files
+- **Separate QueryClient**: Collections use dedicated `QueryClient` (not VueQueryPlugin)
+- **Two-way Sync**: Client mutations persist to API, server events sync via WebSocket
+
+### Client Mutation Flow (Client → Server)
+
+<MermaidChart client:only="react" chartDefinition={`sequenceDiagram
+    participant User
+    participant UI as Vue Component
+    participant Collection as TanStack DB Collection
+    participant Handler as onUpdate Handler
+    participant API as Laravel API
+    participant DB as Database
+    participant Reverb as Reverb WebSocket
+
+    User->>UI: Edit question text
+    UI->>Collection: collection.update(id, draft => {...})
+    Note over Collection: Optimistic update - UI changes instantly
+    Collection->>Handler: onUpdate({ transaction })
+    Handler->>API: PUT /api/debate-questions/:id
+
+    alt API Success
+        API->>DB: UPDATE debate_questions
+        API->>Handler: 200 OK
+        Note over Collection: Changes committed
+    else API Failure
+        API->>Handler: 400/500 Error
+        Handler->>Collection: Throw error
+        Note over Collection: Automatic rollback - UI reverts
+    end
+
+    Note over API,Reverb: Server broadcasts to other clients
+    API->>Reverb: DebateQuestionUpdatedEvent
+    Reverb->>UI: WebSocket event (other clients)
+
+`} />
+
+### Server Sync Flow (Server → Client)
+
+<MermaidChart client:only="react" chartDefinition={`sequenceDiagram
+    participant Backend as Laravel Backend
+    participant Reverb as Reverb WebSocket
+    participant Echo as Laravel Echo
+    participant Sync as useDebateQuestionsSync
+    participant Collection as TanStack DB Collection
+    participant Query as useLiveQuery
+    participant UI as Vue Component
+
+    Backend->>Backend: AI extracts new question
+    Backend->>Reverb: DebateQuestionAddedEvent
+    Note over Reverb: Broadcast to channel: questions.{debateId}
+
+    Reverb->>Echo: WebSocket message
+    Echo->>Sync: .listen('.questions.added_event')
+
+    Sync->>Sync: Transform event data
+    Note over Sync: Map API fields to collection schema
+
+    Sync->>Collection: collection.utils.writeUpsert(question)
+    Note over Collection: Internal write API (server → client only)
+
+    Collection->>Query: Reactive query update
+    Query->>UI: Component re-renders
+    Note over UI: New question appears instantly
+
+`} />
+
+### Initial Load Flow
+
+<MermaidChart client:only="react" chartDefinition={`sequenceDiagram
+    participant Component as Vue Component
+    participant Composable as useDebateQuestions
+    participant API as debateQuestionService
+    participant Collection as TanStack DB Collection
+    participant Sync as useDebateQuestionsSync
+    participant Echo as Laravel Echo
+
+    Component->>Composable: Setup (debateId)
+
+    par Load Initial Data
+        Composable->>API: GET /api/debate-questions?debate_id={id}
+        API->>Composable: Return questions[]
+        Composable->>Collection: Populate collection
+    and Setup Real-time Sync
+        Composable->>Collection: queryClient.ensureQueryData()
+        Note over Collection: Initialize collection first
+        Collection->>Sync: useDebateQuestionsSync(debateId)
+        Sync->>Echo: channel('questions.{debateId}')
+        Note over Echo: WebSocket connected
+    end
+
+    Composable->>Component: useLiveQuery() - reactive data
+    Note over Component: UI renders with initial data + real-time updates
+
+`} />
+
+### WebSocket Setup & Race Condition Prevention
+
+<MermaidChart client:only="react" chartDefinition={`sequenceDiagram
+    participant Composable as useDebateQuestionsSync
+    participant QueryClient as QueryClient
+    participant Collection as TanStack DB Collection
+    participant Echo as Laravel Echo
+
+    Composable->>QueryClient: ensureQueryData({ queryKey })
+    Note over QueryClient: Initialize collection first
+    QueryClient->>Collection: Create/verify collection exists
+    Collection->>QueryClient: Collection ready
+
+    QueryClient->>Composable: Promise resolved
+    Note over Composable: isCollectionReady = true
+
+    Composable->>Echo: channel('questions.{debateId}')
+    Echo->>Composable: Channel connected
+
+    Note over Composable,Echo: Now safe to receive events
+    Echo->>Composable: .questions.added_event
+    Composable->>Collection: writeUpsert(data)
+    Note over Collection: No race condition - collection exists
+
+`} />
+
+**Key Principles:**
+
+- **Optimistic Updates**: UI changes instantly before API confirmation
+- **Automatic Rollback**: Failed mutations revert automatically
+- **Separate Write APIs**: `writeUpsert/Update/Delete` for server events only
+- **Race Condition Prevention**: Initialize collection before WebSocket setup
+- **Type Safety**: End-to-end TypeScript with schema validation
+
+## Docker Network Structure
+
+<MermaidChart client:only="react" chartDefinition={`graph TB
+    subgraph "Host Machine"
+        subgraph "kdai-external-network"
+            Postgres[postgresql Database :5432]
+            Backend[kdai-backend Laravel + AI :8000/:8080]
+        end
+
+        subgraph "kdai-internal-network"
+            Frontend[kdai-frontend Vue SPA :5173/:80]
+            MinIO[kdai-minio Storage :9000/:9001]
+            Redis[kdai-redis Cache/Queue :6379]
+
+            subgraph "ATTS Pipeline"
+                CSP[kdai-atts-csp Stream Processor :7010]
+                WhisperLive[WhisperLive Server :9090]
+            end
+
+            Emulator[kdai-m3u8-emulator Dev Only :6969/:2121]
+        end
+    end
+
+    Frontend -->|API calls| Backend
+    Backend -->|WebSocket Reverb| Frontend
+
+    Backend -->|PostgreSQL| Postgres
+    Backend -->|S3 API| MinIO
+    Backend -->|Redis| Redis
+
+    Backend -->|start/stop| Redis
+    Redis --> CSP
+    CSP -->|audio stream| WhisperLive
+    WhisperLive -->|transcription| CSP
+    CSP -->|Redis queue| Backend
+
+    CSP -->|M3U8 Stream| ExtStream[External Stream]
+
+    classDef external fill:#ffebee,stroke:#c62828,stroke-width:3px
+    classDef network fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef internal fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef dev fill:#fff3e0,stroke:#e65100,stroke-width:2px,stroke-dasharray: 5 5
+
+    class Postgres,Backend external
+    class Frontend,MinIO,Redis,CSP,WhisperLive internal
+    class Emulator dev
+
+`} />
+
+## Technology Stack
+
+| Component     | Technology     | Version                      | Purpose             |
+| ------------- | -------------- | ---------------------------- | ------------------- |
+| Frontend      | Vue 3 + Vite   | 3.5.13 / 7.1                 | User interface      |
+| Backend       | Laravel        | 12.33.0                      | API server          |
+| Database      | PostgreSQL     | 18.0                         | Data persistence    |
+| Cache/Queue   | Valkey (Redis) | 9.0-trixie                   | Caching & queues    |
+| Storage       | MinIO          | RELEASE.2025-09-07T16-13-09Z | Object storage      |
+| Transcription | WhisperLive    | Latest                       | Real-time ASR       |
+| AI            | LLM            | Configurable                 | Question extraction |
+
+## Key Design Decisions
+
+### Real-time Processing
+
+- FFmpeg streams M3U8 audio directly to WhisperLive without intermediate storage
+- Redis queues handle transcript delivery from CSP to backend
+- Laravel Reverb broadcasts updates to frontend clients via WebSocket
+- CSP buffers and deduplicates transcription segments
+
+### Simplified Architecture
+
+- Question extraction integrated within Laravel backend
+- Direct streaming eliminates intermediate storage layers
+- MinIO used for file management, not real-time audio
+- Reduces deployment complexity
+
+### Scalability Considerations
+
+- Redis queues for reliable message delivery
+- Stateless services enable horizontal scaling
+- Database indexing optimized for time-based queries
+
+## Interface Specifications
+
+### Storage Interface (S3-Compatible)
+
+- **Implementation**: MinIO server
+- **API**: Amazon S3 REST API
+- **Authentication**: AWS Signature Version 4
+- **Features**: Bucket operations, object operations, presigned URLs
+
+### LLM Interface (OpenAI-Compatible)
+
+- **Implementation**: Ollama (primary), configurable external APIs
+- **API**: OpenAI Chat Completions API
+- **Models**: Any model with chat completion interface
+- **Features**: Streaming responses, function calling, token tracking
+
+### WebSocket Interface (Laravel Echo)
+
+- **Implementation**: Laravel Reverb (Pusher protocol compatible)
+- **Backend**: Runs on `0.0.0.0:8081`, proxied through Nginx
+- **Frontend**: Connects to `ws://localhost:8001/app`
+- **Path**: `/app` must match between `REVERB_PATH` (backend) and `VITE_WS_PATH` (frontend)
+- **Authentication**: Token-based channel authorization via Sanctum
+- **Features**: Real-time events, private channels, presence tracking
+
+**Critical**: Frontend must specify `wsPath` in Echo config to connect to local Reverb. Without it,
+the client falls back to Pusher's cloud service.
+
+## Next Steps
+
+- [Prerequisites](/installation/prerequisites/)
+- [Docker Setup](/installation/docker-setup/)
+- [Environment Configuration](/installation/environment/)
+- [Backend Details](/components/backend/)
+- [Frontend Details](/components/frontend/)
+- [Services Details](/components/services/)
