@@ -1,0 +1,29 @@
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+.env
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
