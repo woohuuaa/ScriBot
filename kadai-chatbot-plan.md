@@ -1,30 +1,33 @@
-# ScriBot - ML Inference Platform
+# ScriBot - AI-Powered Documentation Chatbot
 
 ## 目標
 
-建立一個具有 Production 要素的 ML Inference Platform，包含：
+建立一個結合課程技術的 AI Chatbot，目標投遞 Autodesk Internship：
+
 - RAG-based Q&A Chatbot for KDAI documentation
-- Triple LLM Provider (Ollama / Groq / OpenAI) 自動切換
-- 即時模型監控（Latency、Cost、Tokens）
-- Citation Tracking（答案標註來源）
+- A/B Testing Framework（使用者可選擇不同 LLM Provider）
+- Statistical Analysis（Latency、Cost、User Feedback）
+- Personalization（儲存提問歷史）
+- 採用課程教授的技術棧（Docker、EC2、GitHub Actions、DynamoDB）
 
 ---
 
-## 技術棧
+## 技術棧（配合課程）
 
-| 組件 | 選擇 | 理由 |
-|------|------|------|
-| Backend | FastAPI (Python) | 會 Python、AI 生態好 |
-| Frontend | Vue.js widget | 與 KDAI 一致 |
-| LLM | Ollama + Groq + OpenAI | 三層容錯、成本控制 |
+| 組件 | 選擇 | 對應課程內容 |
+|------|------|--------------|
+| Backend | FastAPI (Python) | Week 1: Microservices |
+| Frontend | Vue.js widget | 前端開發 |
+| LLM | Ollama + Groq + OpenAI | 三層容錯 |
 | Embedding | nomic-embed-text | Ollama 官方推薦 |
-| Vector DB | Qdrant Cloud | Managed service、免費 1GB |
-| Search | RAG (手寫) | Semantic search、industry standard |
-| Streaming | SSE | ChatGPT 風格逐字顯示 |
-| Monitoring | Custom (Latency/Cost/Tokens) | 即時監控模型效能 |
-| Citation | Custom (Source tracking) | RAG 可解釋性 |
-| CI/CD | GitHub Actions | 自動化 |
-| 部署 | Railway + Docker | Serverless container |
+| Vector DB | Qdrant | AI 向量資料庫 |
+| Container | Docker | Week 5-7: Docker |
+| Container Orchestration | docker compose | Week 10: docker compose |
+| CI/CD | GitHub Actions | Week 3, 8: GitHub Actions |
+| Deployment | AWS EC2 | Week 4: EC2 |
+| Database | DynamoDB | Week 12: DynamoDB |
+| Storage | Local | Week 11: S3 (可選) |
+| IaC | - | Week 13: CloudFormation (可選) |
 
 ---
 
@@ -44,31 +47,34 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Vue.js Chat Widget                         │
-│                     (Embedded in Docs)                           │
+│                     (Embedded in Docs)                          │
 └──────────────────────────────┬──────────────────────────────────┘
                                │ SSE Stream
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      FastAPI Backend (Railway)                    │
+│                      FastAPI Backend (AWS EC2)                    │
+│                         (Docker Container)                        │
 │                                                                  │
-│  POST /api/index      ← 索引 docs (33 MDX)                       │
-│  POST /api/chat       ← SSE streaming 回覆                       │
-│  GET  /api/health     ← 健康檢查                                 │
-│  GET  /api/stats      ← 監控統計                                 │
+│  POST /api/index      ← 索引 docs (33 MDX)                      │
+│  POST /api/chat       ← SSE streaming 回覆                      │
+│  GET  /api/health     ← 健康檢查                                │
+│  GET  /api/stats      ← 監控統計                                │
+│  POST /api/feedback   ← 使用者回饋                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐    │
 │  │  Monitoring Layer ⭐                                      │    │
-│  │  ├── Latency: 1.2s                                       │    │
-│  │  ├── Cost: $0.00 (Ollama)                                │    │
-│  │  ├── Tokens: 2048                                        │    │
+│  │  ├── Latency: 1.2s                                      │    │
+│  │  ├── Cost: $0.00 (Ollama)                              │    │
+│  │  ├── Tokens: 2048                                       │    │
 │  │  └── Fallback count: 0                                   │    │
 │  └──────────────────────────────────────────────────────────┘    │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐    │
-│  │  Citation Layer ⭐                                       │    │
-│  │  ├── [1] Installation/prerequisites.mdx (92%)           │    │
-│  │  └── [2] Architecture.mdx (78%)                         │    │
+│  │  A/B Testing Layer ⭐                                    │    │
+│  │  ├── User selected: Ollama                              │    │
+│  │  ├── Provider usage stats: {ollama: 60%, groq: 30%}     │    │
+│  │  └── User feedback: 👍 85%                              │    │
 │  └──────────────────────────────────────────────────────────┘    │
 └──────────────────────────────┬──────────────────────────────────┘
                                │
@@ -77,17 +83,14 @@
 ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
 │     Ollama      │   │      Groq       │   │     OpenAI     │
 │   (Primary)     │   │    (Backup)     │   │    (Backup)    │
-│   llama3.1:8b   │   │ llama-3.3-70b   │   │   gpt-4o-mini  │
+│   llama3.1:8b   │   │ llama-3.3-70b  │   │   gpt-4o-mini  │
 │   你的 4060     │   │     免費        │   │   $5 credit    │
 └─────────────────┘   └─────────────────┘   └─────────────────┘
-         │
-         │ ngrok tunnel
-         │ (暴露本地資源給雲端)
-         ▼
-┌─────────────────┐
-│    Qdrant       │
-│     Cloud       │
-└─────────────────┘
+                               │
+┌─────────────────┐   ┌─────────────────┐
+│     Qdrant      │   │    DynamoDB    │
+│   (Vector DB)   │   │  (User History) │
+└─────────────────┘   └─────────────────┘
 ```
 
 ---
@@ -101,13 +104,12 @@ Step 1: Index
 Step 2: Search
   問題 → 轉向量 → Qdrant cosine similarity → Top-3 chunks + 分數
 
-Step 3: Generate + Monitor
+Step 3: Generate
   問題 + chunks → Prompt → LLM → SSE streaming
                   │
                   ├── ⏱ Latency tracking
                   ├── 💰 Cost tracking
-                  ├── 📊 Token counting
-                  └── 🔗 Citation generation
+                  └── 📊 Token counting
 ```
 
 ---
@@ -124,81 +126,99 @@ Request →
 
 ---
 
-## 強化功能（差異化）
-
-### 1. 模型監控 (Monitoring)
-
-| 指標 | 說明 | 面試話題 |
-|------|------|----------|
-| Latency | 每個步驟耗時（embedding/search/generation） | 如何優化模型延遲？ |
-| Cost | 每次請求估計成本 | 如何控制 LLM 成本？ |
-| Tokens | 輸入/輸出 token 數 | Token 怎麼計費？ |
-| Fallback count | 自動切換次數 | 如何設計容錯機制？ |
-
-### 2. Citation Tracking
+## A/B Testing Framework ⭐
 
 | 功能 | 說明 | 面試話題 |
 |------|------|----------|
-| Source linking | 標註答案來源 | 為什麼 RAG 要標註來源？ |
-| Similarity score | 顯示相似度（92%、78%）| 如何確保答案正確性？ |
-| Document title | 顯示文件名稱 | 如何實現可解釋 AI？ |
+| Provider Selection | 使用者可以選擇用哪個 LLM | 了解 A/B Testing 概念 |
+| Usage Statistics | 記錄每個 Provider 被選的次數 | 資料收集與分析 |
+| User Feedback | 收集使用者 👍/👎 回饋 | Statistical Analysis |
+
+### 使用者流程
+
+```
+1. 使用者打開聊天框
+2. 看到 Provider 選項（Ollama / Groq / OpenAI）
+3. 選擇一個後傳送問題
+4. 回答後可以給 👍 或 👎
+5. 系統記錄：選擇 + 回饋 + Latency + Cost
+```
+
+---
+
+## Statistical Analysis ⭐
+
+| 指標 | 說明 | 面試話題 |
+|------|------|----------|
+| Latency | 每個步驟耗時 | 如何優化模型延遲？ |
+| Cost | 每次請求估計成本 | 如何控制 LLM 成本？ |
+| Tokens | 輸入/輸出 token 數 | Token 怎麼計費？ |
+| User Feedback | 👍/👎 回饋比率 | 如何衡量使用者滿意度？ |
+| Provider Distribution | 各 Provider 被選次數 | A/B Testing 結果分析 |
+
+---
+
+## Personalization ⭐
+
+| 功能 | 說明 | 面試話題 |
+|------|------|----------|
+| Query History | 儲存提問歷史到 DynamoDB | NoSQL 資料庫應用 |
+| History Display | 顯示過去提問 | 使用者體驗優化 |
 
 ---
 
 ## 4 週時程
 
-### Week 1: 環境建置 + RAG Pipeline
+### Week 1: 核心架構 + Docker + docker compose
 
 | Day | 任務 | 交付物 |
 |-----|------|--------|
-| 1 | Ollama 設定 (`llama3.1:8b` + `nomic-embed-text`) | 本機可運行 |
-| 2 | ngrok 設定（暴露 Ollama 給雲端）| 公開 URL |
-| 3 | Railway 部署 FastAPI | 初步上線 |
-| 4 | Qdrant Cloud 串接 | 向量資料庫就緒 |
-| 5-6 | RAG Pipeline: Embedding + Search + Generate | 完整流程 |
-| 7 | **Live Demo 完成** | 可分享 URL |
+| 1 | 建立專案結構 + Dockerfile | Docker 化 |
+| 2 | 建立 docker-compose.yml | 多容器管理 |
+| 3 | FastAPI 基本架構 | Microservices |
+| 4 | 三個 LLM Provider 串接 | Ollama / Groq / OpenAI |
+| 5-7 | 本地 Docker 測試成功 | 可運作的容器 |
 
-**交付**: `python scripts/index_docs.py`
+**交付**: `docker compose up` 可啟動服務
 
 ---
 
-### Week 2: Triple LLM Provider + 容錯機制
+### Week 2: RAG Pipeline + DynamoDB
 
 | Day | 任務 | 交付物 |
 |-----|------|--------|
-| 1-2 | Groq API 串接 | 雙 Provider |
-| 3-4 | OpenAI API 串接 | 三重 Provider |
-| 5-6 | Fallback 邏輯實作 | Ollama → Groq → OpenAI |
-| 7 | 測試容錯機制 | 穩定版本 |
+| 1-2 | Qdrant 串接 + Embedding | Vector DB 就緒 |
+| 3-4 | DynamoDB 設定 + 存使用者歷史 | Personalization |
+| 5-6 | Monitoring Layer (Latency/Cost) | Statistical Analysis |
+| 7 | RAG Pipeline 完成 | 可問答的 Chatbot |
 
-**交付**: 三層 LLM 自動切換
+**交付**: RAG Pipeline 可正常運作
 
 ---
 
-### Week 3: 強化功能 + Frontend Widget
+### Week 3: CI/CD + A/B Testing
 
 | Day | 任務 | 交付物 |
 |-----|------|--------|
-| 1-2 | Monitoring Layer (Latency/Cost/Tokens) | 模型監控 ⭐ |
-| 3-4 | Citation Layer (Source/Citation tracking) | 引用追蹤 ⭐ |
-| 5-6 | Vue.js widget 初始化 + SSE 串接 | 聊天 UI |
-| 7 | 整合監控 + Citation 到 widget | 完整前端 |
+| 1-2 | GitHub Actions CI workflow | 自動化測試 |
+| 3-4 | A/B Testing Framework | 使用者可選 Provider |
+| 5-6 | User Feedback 收集 | Statistical Analysis |
+| 7 | 基本 Widget | 可嵌入的聊天框 |
 
-**交付**: 包含監控和引用的 chatbot widget
+**交付**: GitHub Actions CI pipeline + A/B Testing
 
 ---
 
-### Week 4: 測試 + CI/CD + 文檔
+### Week 4: AWS EC2 部署 + CD Pipeline
 
 | Day | 任務 | 交付物 |
 |-----|------|--------|
-| 1-2 | pytest: API tests + Monitoring tests | Backend 測試 |
-| 3 | Vitest: Widget tests | 前端測試 |
-| 4 | GitHub Actions CI workflow | 自動測試 |
-| 5-6 | Railway CD pipeline | 自動部署 |
-| 7 | README、架構圖、面試準備 | 完成 |
+| 1-2 | AWS EC2 設定 + 部署 | Live Demo |
+| 3-4 | CD Pipeline (GitHub Actions) | 自動部署 |
+| 5-6 | Personalization + 完善化 | 功能完整 |
+| 7 | README + 面試準備 | 可放履歷 |
 
-**交付**: Production-ready、可放履歷
+**交付**: Production-ready、可上線、Live Demo URL
 
 ---
 
@@ -207,9 +227,12 @@ Request →
 | Method | Endpoint | 描述 |
 |--------|----------|------|
 | POST | `/api/index` | 索引所有 .mdx 文件 |
-| POST | `/api/chat` | SSE streaming 回覆（含 citation）|
+| POST | `/api/chat` | SSE streaming 回覆 |
 | GET | `/api/health` | 健康檢查 |
 | GET | `/api/stats` | 監控統計 |
+| POST | `/api/feedback` | 提交使用者回饋 |
+| GET | `/api/history` | 取得提問歷史 |
+| POST | `/api/select-provider` | 選擇 LLM Provider |
 
 ---
 
@@ -233,20 +256,36 @@ Request →
 }
 ```
 
+### /api/stats Response
+
+```json
+{
+  "total_requests": 150,
+  "provider_usage": {
+    "ollama": 90,
+    "groq": 45,
+    "openai": 15
+  },
+  "avg_latency_ms": 1500,
+  "total_cost": 0.05,
+  "feedback_positive_rate": 0.85
+}
+```
+
 ---
 
 ## 專案結構
 
 ```
 ScriBot/
-├── docker-compose.yml         # Qdrant (本地備用)
-├── Dockerfile
+├── docker-compose.yml         # 多容器管理
+├── Dockerfile                  # Backend 容器化
 ├── requirements.txt
 ├── backend/
 │   ├── main.py                # FastAPI 入口
 │   ├── config.py              # 設定管理
 │   ├── routers/
-│   │   └── chat.py            # /api/chat endpoint
+│   │   └── chat.py            # API endpoints
 │   ├── services/
 │   │   ├── llm_providers/     # LLM Provider 抽象層
 │   │   │   ├── base.py
@@ -254,20 +293,21 @@ ScriBot/
 │   │   │   ├── groq.py
 │   │   │   └── openai.py
 │   │   ├── embedder.py        # 向量化服務
-│   │   ├── searcher.py       # Qdrant 搜尋
-│   │   ├── generator.py      # LLM 生成
-│   │   ├── monitor.py         # 監控服務 ⭐ NEW
-│   │   └── citation.py        # 引用追蹤 ⭐ NEW
+│   │   ├── searcher.py        # Qdrant 搜尋
+│   │   ├── generator.py        # LLM 生成
+│   │   ├── monitor.py          # 監控服務
+│   │   └── dynamodb.py         # DynamoDB 操作
 │   ├── models/
-│   │   └── schemas.py         # Pydantic models
+│   │   └── schemas.py
 │   └── scripts/
-│       └── index_docs.py      # MDX indexing
-├── chatbot_widget/            # Vue.js widget
-│   ├── ChatWidget.vue
+│       └── index_docs.py
+├── chatbot_widget/             # Vue.js widget
 │   └── ...
-└── .github/
-    └── workflows/
-        └── ci.yml
+├── .github/
+│   └── workflows/
+│       ├── ci.yml             # CI pipeline
+│       └── cd.yml             # CD pipeline
+└── README.md
 ```
 
 ---
@@ -275,36 +315,47 @@ ScriBot/
 ## 履歷寫法
 
 ```
-ScriBot - ML Inference Platform (Side Project)
-- RAG-based Q&A chatbot with real-time model monitoring (latency, cost, tokens)
-- Source citation tracking for AI-generated responses
-- Triple LLM provider architecture (Ollama/Groq/OpenAI) with automatic fallback
-- FastAPI REST API + Vue.js embedded widget + SSE streaming
-- Railway deployment with Docker containerization
+ScriBot - AI-Powered Documentation Chatbot (Side Project)
+
+- RAG-based Q&A chatbot deployed on AWS EC2 with Docker containerization
+- A/B testing framework for LLM provider comparison (Ollama/Groq/OpenAI)
+- Statistical analysis: tracking latency, cost, and user feedback metrics
+- Personalization: storing user query history in DynamoDB
+- Full stack: FastAPI backend + Vue.js widget + Qdrant vector database
+- CI/CD with GitHub Actions (automated testing and deployment)
+
+Technologies: Python, FastAPI, Docker, AWS EC2, DynamoDB, GitHub Actions, Vue.js
 ```
 
 ---
 
 ## 面試可說的點
 
-1. **Triple LLM Provider + Fallback**
-   → 「如何設計 fault-tolerant 的 ML inference 系統？」
-   → 「如何控制 LLM 的成本？」
+1. **A/B Testing Framework**
+   → 「我在 ScriBot 實作了 A/B Testing Framework，讓使用者可以選擇不同 LLM Provider 並記錄選擇」
+   → 「這符合 Autodesk JD 要求的 A/B Testing 經驗」
 
-2. **模型監控 (Monitoring)**
-   → 「模型上線後如何確保它正常運作？」
-   → 「如何追蹤 LLM 的延遲和成本？」
+2. **Statistical Analysis**
+   → 「我有追蹤 Latency、Cost、User Feedback，並分析不同 Provider 的表現」
+   → 「了解如何收集和分析資料來優化系統」
 
-3. **Citation Tracking**
-   → 「RAG 為什麼要標註來源？」
-   → 「如何實現可解釋的 AI？」
+3. **DynamoDB (NoSQL)**
+   → 「使用 DynamoDB 儲存使用者提問歷史」
+   → 「Week 12 會在課程中學 DynamoDB，這是我的實際應用」
 
-4. **ngrok 暴露本地資源**
-   → 「如何把本地服務雲端化？」
-   → 「這涉及哪些網路安全考量？」
+4. **Docker + docker compose**
+   → 「用 Docker 容器化 Backend，用 docker compose 管理多個容器」
+   → 「Week 5-7 會在課程中學 Docker，這是我的提前實作」
 
-5. **與 KDAI 的連結**
+5. **GitHub Actions CI/CD**
+   → 「用 GitHub Actions 做自動化測試和部署」
+   → 「Week 3, 8 會在課程中學 GitHub Actions」
+
+6. **AWS EC2 部署**
+   → 「部署到 AWS EC2，學習雲端部署流程」
+   → 「Week 4 會在課程中學 EC2」
+
+7. **與 KDAI 的連結**
    → 參考 KDAI 的 Docker Compose 微服務架構
    → Ollama 本地 LLM 與 KDAI 一致
    → 補足 KDAI 欠缺的 semantic search 功能
-   → 使用與 KDAI ATTS 相同的 Python 微服務模式

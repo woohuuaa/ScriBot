@@ -1,30 +1,33 @@
-# ScriBot - ML Inference Platform
+# ScriBot - AI-Powered Documentation Chatbot
 
 ## Goal
 
-Build an ML Inference Platform with Production-ready features:
+Build an AI chatbot aligned with course technologies, targeting Autodesk Internship:
+
 - RAG-based Q&A Chatbot for KDAI documentation
-- Triple LLM Provider (Ollama / Groq / OpenAI) with automatic fallback
-- Real-time model monitoring (Latency, Cost, Tokens)
-- Citation Tracking (source attribution for AI responses)
+- A/B Testing Framework (user can select different LLM providers)
+- Statistical Analysis (Latency, Cost, User Feedback)
+- Personalization (storing query history)
+- Using technologies taught in course (Docker, EC2, GitHub Actions, DynamoDB)
 
 ---
 
-## Tech Stack
+## Tech Stack (Aligned with Course)
 
-| Component | Choice | Reason |
-|-----------|--------|--------|
-| Backend | FastAPI (Python) | Know Python, great AI ecosystem |
-| Frontend | Vue.js widget | Consistent with KDAI |
-| LLM | Ollama + Groq + OpenAI | Triple redundancy, cost control |
+| Component | Choice | Course Content |
+|-----------|--------|----------------|
+| Backend | FastAPI (Python) | Week 1: Microservices |
+| Frontend | Vue.js widget | Frontend development |
+| LLM | Ollama + Groq + OpenAI | Triple redundancy |
 | Embedding | nomic-embed-text | Ollama recommended |
-| Vector DB | Qdrant Cloud | Managed service, free 1GB |
-| Search | RAG (hand-written) | Semantic search, industry standard |
-| Streaming | SSE | ChatGPT-style streaming |
-| Monitoring | Custom (Latency/Cost/Tokens) | Real-time model performance |
-| Citation | Custom (Source tracking) | RAG explainability |
-| CI/CD | GitHub Actions | Automation |
-| Deployment | Railway + Docker | Serverless container |
+| Vector DB | Qdrant | AI vector database |
+| Container | Docker | Week 5-7: Docker |
+| Container Orchestration | docker compose | Week 10: docker compose |
+| CI/CD | GitHub Actions | Week 3, 8: GitHub Actions |
+| Deployment | AWS EC2 | Week 4: EC2 |
+| Database | DynamoDB | Week 12: DynamoDB |
+| Storage | Local | Week 11: S3 (optional) |
+| IaC | - | Week 13: CloudFormation (optional) |
 
 ---
 
@@ -49,26 +52,29 @@ Build an ML Inference Platform with Production-ready features:
                                │ SSE Stream
                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      FastAPI Backend (Railway)                    │
+│                      FastAPI Backend (AWS EC2)                    │
+│                         (Docker Container)                        │
 │                                                                  │
-│  POST /api/index      ← Index docs (33 MDX files)                │
-│  POST /api/chat       ← SSE streaming response                    │
-│  GET  /api/health     ← Health check                             │
-│  GET  /api/stats      ← Monitoring stats                         │
+│  POST /api/index      ← Index docs (33 MDX files)              │
+│  POST /api/chat       ← SSE streaming response                  │
+│  GET  /api/health     ← Health check                            │
+│  GET  /api/stats      ← Monitoring stats                        │
+│  POST /api/feedback   ← User feedback                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐    │
-│  │  Monitoring Layer ⭐                                       │    │
-│  │  ├── Latency: 1.2s                                        │    │
-│  │  ├── Cost: $0.00 (Ollama)                                 │    │
-│  │  ├── Tokens: 2048                                         │    │
+│  │  Monitoring Layer ⭐                                      │    │
+│  │  ├── Latency: 1.2s                                       │    │
+│  │  ├── Cost: $0.00 (Ollama)                               │    │
+│  │  ├── Tokens: 2048                                        │    │
 │  │  └── Fallback count: 0                                    │    │
 │  └──────────────────────────────────────────────────────────┘    │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐    │
-│  │  Citation Layer ⭐                                        │    │
-│  │  ├── [1] Installation/prerequisites.mdx (92%)            │    │
-│  │  └── [2] Architecture.mdx (78%)                           │    │
+│  │  A/B Testing Layer ⭐                                     │    │
+│  │  ├── User selected: Ollama                               │    │
+│  │  ├── Provider usage stats: {ollama: 60%, groq: 30%}     │    │
+│  │  └── User feedback: 👍 85%                               │    │
 │  └──────────────────────────────────────────────────────────┘    │
 └──────────────────────────────┬──────────────────────────────────┘
                                │
@@ -78,16 +84,13 @@ Build an ML Inference Platform with Production-ready features:
 │     Ollama      │   │      Groq       │   │     OpenAI     │
 │   (Primary)     │   │    (Backup)     │   │    (Backup)    │
 │   llama3.1:8b   │   │ llama-3.3-70b  │   │   gpt-4o-mini  │
-│   Your 4060    │   │     Free        │   │   $5 credit    │
+│   Your 4060     │   │     Free        │   │   $5 credit    │
 └─────────────────┘   └─────────────────┘   └─────────────────┘
-         │
-         │ ngrok tunnel
-         │ (Expose local resources to cloud)
-         ▼
-┌─────────────────┐
-│    Qdrant       │
-│     Cloud       │
-└─────────────────┘
+                               │
+┌─────────────────┐   ┌─────────────────┐
+│     Qdrant      │   │    DynamoDB     │
+│   (Vector DB)   │   │  (User History) │
+└─────────────────┘   └─────────────────┘
 ```
 
 ---
@@ -101,13 +104,12 @@ Step 1: Index
 Step 2: Search
   Question → Embed → Qdrant cosine similarity → Top-3 chunks + scores
 
-Step 3: Generate + Monitor
+Step 3: Generate
   Question + chunks → Prompt → LLM → SSE streaming
                   │
                   ├── ⏱ Latency tracking
                   ├── 💰 Cost tracking
-                  ├── 📊 Token counting
-                  └── 🔗 Citation generation
+                  └── 📊 Token counting
 ```
 
 ---
@@ -124,81 +126,99 @@ Request →
 
 ---
 
-## Enhancement Features (Differentiation)
-
-### 1. Model Monitoring
-
-| Metric | Description | Interview Topic |
-|--------|-------------|-----------------|
-| Latency | Time per step (embedding/search/generation) | How to optimize model latency? |
-| Cost | Estimated cost per request | How to control LLM costs? |
-| Tokens | Input/output token count | How is token billing calculated? |
-| Fallback count | Number of auto-switches | How to design fault tolerance? |
-
-### 2. Citation Tracking
+## A/B Testing Framework ⭐
 
 | Feature | Description | Interview Topic |
 |---------|-------------|-----------------|
-| Source linking | Attribution in answers | Why should RAG cite sources? |
-| Similarity score | Display match percentage (92%, 78%) | How to ensure answer accuracy? |
-| Document title | Show file names | How to implement Explainable AI? |
+| Provider Selection | User can select which LLM to use | Understanding A/B Testing concepts |
+| Usage Statistics | Record usage count for each Provider | Data collection and analysis |
+| User Feedback | Collect 👍/👎 feedback | Statistical Analysis |
+
+### User Flow
+
+```
+1. User opens chat
+2. See Provider options (Ollama / Groq / OpenAI)
+3. Select one and send question
+4. After answer, give 👍 or 👎
+5. System records: selection + feedback + Latency + Cost
+```
+
+---
+
+## Statistical Analysis ⭐
+
+| Metric | Description | Interview Topic |
+|--------|-------------|-----------------|
+| Latency | Time per step | How to optimize model latency? |
+| Cost | Estimated cost per request | How to control LLM costs? |
+| Tokens | Input/output token count | How is token billing calculated? |
+| User Feedback | 👍/👎 feedback ratio | How to measure user satisfaction? |
+| Provider Distribution | Usage count per Provider | A/B Testing result analysis |
+
+---
+
+## Personalization ⭐
+
+| Feature | Description | Interview Topic |
+|---------|-------------|-----------------|
+| Query History | Store query history in DynamoDB | NoSQL database application |
+| History Display | Show past queries | User experience optimization |
 
 ---
 
 ## 4-Week Timeline
 
-### Week 1: Environment Setup + RAG Pipeline
+### Week 1: Core Architecture + Docker + docker compose
 
 | Day | Task | Deliverable |
 |-----|------|-------------|
-| 1 | Ollama setup (`llama3.1:8b` + `nomic-embed-text`) | Local working |
-| 2 | ngrok setup (expose Ollama to cloud) | Public URL |
-| 3 | Railway deployment of FastAPI | Initial deployment |
-| 4 | Qdrant Cloud setup | Vector DB ready |
-| 5-6 | RAG Pipeline: Embedding + Search + Generate | Complete flow |
-| 7 | **Live Demo** | Shareable URL |
+| 1 | Project structure + Dockerfile | Dockerized |
+| 2 | docker-compose.yml | Multi-container management |
+| 3 | FastAPI basic structure | Microservices |
+| 4 | Three LLM Provider integration | Ollama / Groq / OpenAI |
+| 5-7 | Local Docker test successful | Working containers |
 
-**Deliverable**: `python scripts/index_docs.py`
+**Deliverable**: `docker compose up` can start services
 
 ---
 
-### Week 2: Triple LLM Provider + Fault Tolerance
+### Week 2: RAG Pipeline + DynamoDB
 
 | Day | Task | Deliverable |
 |-----|------|-------------|
-| 1-2 | Groq API integration | Dual Provider |
-| 3-4 | OpenAI API integration | Triple Provider |
-| 5-6 | Fallback logic implementation | Ollama → Groq → OpenAI |
-| 7 | Fault tolerance testing | Stable version |
+| 1-2 | Qdrant integration + Embedding | Vector DB ready |
+| 3-4 | DynamoDB setup + Store user history | Personalization |
+| 5-6 | Monitoring Layer (Latency/Cost) | Statistical Analysis |
+| 7 | RAG Pipeline complete | Working Q&A Chatbot |
 
-**Deliverable**: Three-layer LLM auto-switching
+**Deliverable**: RAG Pipeline working
 
 ---
 
-### Week 3: Enhancement Features + Frontend Widget
+### Week 3: CI/CD + A/B Testing
 
 | Day | Task | Deliverable |
 |-----|------|-------------|
-| 1-2 | Monitoring Layer (Latency/Cost/Tokens) | Model monitoring ⭐ |
-| 3-4 | Citation Layer (Source/Citation tracking) | Citation tracking ⭐ |
-| 5-6 | Vue.js widget init + SSE integration | Chat UI |
-| 7 | Integrate monitoring + citation into widget | Complete frontend |
+| 1-2 | GitHub Actions CI workflow | Automated testing |
+| 3-4 | A/B Testing Framework | User can select Provider |
+| 5-6 | User Feedback collection | Statistical Analysis |
+| 7 | Basic Widget | Embeddable chat box |
 
-**Deliverable**: Chatbot widget with monitoring and citation
+**Deliverable**: GitHub Actions CI pipeline + A/B Testing
 
 ---
 
-### Week 4: Testing + CI/CD + Documentation
+### Week 4: AWS EC2 Deployment + CD Pipeline
 
 | Day | Task | Deliverable |
 |-----|------|-------------|
-| 1-2 | pytest: API tests + Monitoring tests | Backend tests |
-| 3 | Vitest: Widget tests | Frontend tests |
-| 4 | GitHub Actions CI workflow | Auto testing |
-| 5-6 | Railway CD pipeline | Auto deployment |
-| 7 | README, architecture diagram, interview prep | Complete |
+| 1-2 | AWS EC2 setup + deployment | Live Demo |
+| 3-4 | CD Pipeline (GitHub Actions) | Automated deployment |
+| 5-6 | Personalization + polish | Feature complete |
+| 7 | README + Interview prep | Resume-ready |
 
-**Deliverable**: Production-ready, resume-worthy
+**Deliverable**: Production-ready, Live Demo URL
 
 ---
 
@@ -207,9 +227,12 @@ Request →
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/index` | Index all .mdx files |
-| POST | `/api/chat` | SSE streaming response (with citation) |
+| POST | `/api/chat` | SSE streaming response |
 | GET | `/api/health` | Health check |
 | GET | `/api/stats` | Monitoring statistics |
+| POST | `/api/feedback` | Submit user feedback |
+| GET | `/api/history` | Get query history |
+| POST | `/api/select-provider` | Select LLM Provider |
 
 ---
 
@@ -233,20 +256,36 @@ Request →
 }
 ```
 
+### /api/stats Response
+
+```json
+{
+  "total_requests": 150,
+  "provider_usage": {
+    "ollama": 90,
+    "groq": 45,
+    "openai": 15
+  },
+  "avg_latency_ms": 1500,
+  "total_cost": 0.05,
+  "feedback_positive_rate": 0.85
+}
+```
+
 ---
 
 ## Project Structure
 
 ```
 ScriBot/
-├── docker-compose.yml         # Qdrant (local backup)
-├── Dockerfile
+├── docker-compose.yml         # Multi-container management
+├── Dockerfile                  # Backend containerization
 ├── requirements.txt
 ├── backend/
 │   ├── main.py                # FastAPI entry
 │   ├── config.py              # Configuration management
 │   ├── routers/
-│   │   └── chat.py            # /api/chat endpoint
+│   │   └── chat.py            # API endpoints
 │   ├── services/
 │   │   ├── llm_providers/     # LLM Provider abstraction
 │   │   │   ├── base.py
@@ -255,19 +294,20 @@ ScriBot/
 │   │   │   └── openai.py
 │   │   ├── embedder.py        # Embedding service
 │   │   ├── searcher.py        # Qdrant search
-│   │   ├── generator.py       # LLM generation
-│   │   ├── monitor.py         # Monitoring service ⭐ NEW
-│   │   └── citation.py        # Citation tracking ⭐ NEW
+│   │   ├── generator.py        # LLM generation
+│   │   ├── monitor.py          # Monitoring service
+│   │   └── dynamodb.py         # DynamoDB operations
 │   ├── models/
-│   │   └── schemas.py         # Pydantic models
+│   │   └── schemas.py
 │   └── scripts/
-│       └── index_docs.py      # MDX indexing
+│       └── index_docs.py
 ├── chatbot_widget/             # Vue.js widget
-│   ├── ChatWidget.vue
 │   └── ...
-└── .github/
-    └── workflows/
-        └── ci.yml
+├── .github/
+│   └── workflows/
+│       ├── ci.yml             # CI pipeline
+│       └── cd.yml             # CD pipeline
+└── README.md
 ```
 
 ---
@@ -275,36 +315,47 @@ ScriBot/
 ## Resume Description
 
 ```
-ScriBot - ML Inference Platform (Side Project)
-- RAG-based Q&A chatbot with real-time model monitoring (latency, cost, tokens)
-- Source citation tracking for AI-generated responses
-- Triple LLM provider architecture (Ollama/Groq/OpenAI) with automatic fallback
-- FastAPI REST API + Vue.js embedded widget + SSE streaming
-- Railway deployment with Docker containerization
+ScriBot - AI-Powered Documentation Chatbot (Side Project)
+
+- RAG-based Q&A chatbot deployed on AWS EC2 with Docker containerization
+- A/B testing framework for LLM provider comparison (Ollama/Groq/OpenAI)
+- Statistical analysis: tracking latency, cost, and user feedback metrics
+- Personalization: storing user query history in DynamoDB
+- Full stack: FastAPI backend + Vue.js widget + Qdrant vector database
+- CI/CD with GitHub Actions (automated testing and deployment)
+
+Technologies: Python, FastAPI, Docker, AWS EC2, DynamoDB, GitHub Actions, Vue.js
 ```
 
 ---
 
 ## Interview Talking Points
 
-1. **Triple LLM Provider + Fallback**
-   → "How to design a fault-tolerant ML inference system?"
-   → "How to control LLM costs?"
+1. **A/B Testing Framework**
+   → "I implemented an A/B Testing Framework where users can select different LLM providers and I record their choices"
+   → "This aligns with Autodesk JD requirement for A/B Testing experience"
 
-2. **Model Monitoring**
-   → "How to ensure models are working after deployment?"
-   → "How to track LLM latency and costs?"
+2. **Statistical Analysis**
+   → "I track Latency, Cost, and User Feedback, and analyze performance across different providers"
+   → "I understand how to collect and analyze data to optimize the system"
 
-3. **Citation Tracking**
-   → "Why should RAG cite sources?"
-   → "How to implement Explainable AI?"
+3. **DynamoDB (NoSQL)**
+   → "I use DynamoDB to store user query history"
+   → "Week 12 in my course teaches DynamoDB, this is my practical application"
 
-4. **ngrok Local-to-Cloud**
-   → "How to expose local resources to the cloud?"
-   → "What are the security considerations?"
+4. **Docker + docker compose**
+   → "I use Docker to containerize the Backend and docker compose to manage multiple containers"
+   → "Week 5-7 in my course teaches Docker, this is my early implementation"
 
-5. **Connection to KDAI**
+5. **GitHub Actions CI/CD**
+   → "I use GitHub Actions for automated testing and deployment"
+   → "Week 3, 8 in my course teaches GitHub Actions"
+
+6. **AWS EC2 Deployment**
+   → "I deploy to AWS EC2 and learn cloud deployment workflow"
+   → "Week 4 in my course teaches EC2"
+
+7. **Connection to KDAI**
    → Referenced KDAI's Docker Compose microservices architecture
    → Ollama local LLM consistent with KDAI's implementation
    → Addresses KDAI's missing semantic search functionality
-   → Uses same Python microservices pattern as KDAI ATTS services
