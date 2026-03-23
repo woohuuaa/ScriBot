@@ -7,7 +7,7 @@ services:
   # ─────────────────────────────────────────────────────────
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
@@ -49,7 +49,7 @@ services:
     # Health check
     # → 確認服務正常運作後才啟動依賴的服務
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/readyz"]
+      test: [ "CMD", "curl", "-f", "http://localhost:6333/readyz" ]
       interval: 10s
       timeout: 5s
       retries: 5
