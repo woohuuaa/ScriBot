@@ -1,6 +1,3 @@
-# backend/services/llm_providers/base.py
-# Base class for LLM providers 
-
 from abc import ABC, abstractmethod
 # abc = Abstract Base Classes module
 # ABC = Base class for creating abstract classes
