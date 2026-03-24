@@ -19,20 +19,45 @@ class Settings(BaseSettings):
     Automatically reads from .env file
 
     Why BaseSettings?
-        - Type validation / 有型別驗證
-        - Default values / 有預設值
-        - Environment variables override .env / 環境變數優先於 .env
+        - Type validation
+        - Default values
+        - Environment variables override .env
     
-    Usage / 用法：
+    Usage:
         from config import settings
         settings.ollama_model  # "llama3.1:8b"
     """
    
     # LLM Settings
     default_provider: LLMProvider = LLMProvider.OLLAMA  # Default: use local Ollama
+
+    # ─────────────────────────────────────────────────────────
+    # System Prompt
+    # ─────────────────────────────────────────────────────────
+    # Defines ScriBot's persona and behavior
+    # Uses "soft redirect" - helpful but guides toward KDAI topics
+    system_prompt: str = """You are ScriBot, an AI assistant specialized in KDAI (KamerDebat AI) documentation.
+
+KDAI is a real-time Dutch parliamentary debate transcription and question extraction system built with Docker Compose microservices architecture.
+
+Key components you know about:
+- Backend: Laravel 12 + PHP 8.2 + PostgreSQL
+- Frontend: Vue 3 + TypeScript + Vite  
+- Services: ATTS (Audio Transcription), WhisperLive, Question Extraction
+- Infrastructure: Docker, Nginx, MinIO, Redis
+
+Guidelines:
+1. Focus on KDAI-related topics (architecture, installation, components, troubleshooting)
+2. For non-KDAI questions, briefly help if you can, then gently suggest exploring KDAI topics
+3. Be concise and helpful
+4. Answer in the same language as the user's question (Chinese/English/Dutch)
+5. If you don't know something about KDAI, say so honestly
+
+Example redirect: "I can help with that briefly! By the way, I'm specialized in KDAI documentation - feel free to ask about KDAI's architecture, installation, or components."
+"""
     
     # Ollama (Primary)
-    ollama_base_url: str = "http://localhost:11434"
+    ollama_base_url: str = "http://ollama:11434"
     ollama_model: str = "llama3.1:8b"
     ollama_embedding_model: str = "nomic-embed-text"
     
@@ -47,12 +72,12 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"  # Cost-effective choice
     
     # Qdrant Vector Database
-    qdrant_host: str = "localhost"
+    qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
     qdrant_collection: str = "kdai_docs"
     
     # ─────────────────────────────────────────────────────────
-    # RAG Settings / RAG 設定
+    # RAG Settings
     # ─────────────────────────────────────────────────────────
     embedding_dimension: int = 768
     # nomic-embed-text output dimension

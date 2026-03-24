@@ -74,6 +74,7 @@ class OpenAIProvider(BaseLLMProvider):
         payload = {
             "model": self.model,
             "messages": [
+                {"role": "system", "content": settings.system_prompt},
                 {"role": "user", "content": prompt}
             ],
             "stream": True,
