@@ -1,7 +1,16 @@
-# docker-compose file format version
-# 最新版用 "3.8" 或 "3.9"
-version: "3.8"
 services:
+  # ─────────────────────────────────────────────────────────
+  # Ollama LLM Service
+  # ─────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - scribot-network
+
   # ─────────────────────────────────────────────────────────
   # FastAPI Backend Service
   # ─────────────────────────────────────────────────────────
@@ -9,45 +18,31 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    # Why environment?
-    # → 傳入環境變數給容器
     environment:
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=http://ollama:11434
       - GROQ_API_KEY=${GROQ_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
-    # Why depends_on?
-    # → 等 qdrant 啟動後才啟動 backend
     depends_on:
+      ollama:
+        condition: service_started
       qdrant:
         condition: service_healthy
-    # Why restart?
-    # → 容器崩潰時自動重啟
     restart: unless-stopped
-    # Why networks?
-    # → 指定這個服務在哪個網路
+    ports:
+      - "8000:8000"
     networks:
       - scribot-network
+
   # ─────────────────────────────────────────────────────────
   # Qdrant Vector Database Service
   # ─────────────────────────────────────────────────────────
   qdrant:
     image: qdrant/qdrant:latest
-    # Port mapping
-    # → 6333: REST API
-    # → 6334: gRPC API
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    # Volume mounting
-    # → 儲存資料到主機
+    command: /bin/sh -c "apt-get update && apt-get install -y curl && ./entrypoint.sh"
     volumes:
       - ./qdrant_storage:/qdrant/storage
-    # Health check
-    # → 確認服務正常運作後才啟動依賴的服務
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:6333/readyz" ]
       interval: 10s
@@ -55,15 +50,10 @@ services:
       retries: 5
     networks:
       - scribot-network
-# ─────────────────────────────────────────────────────────────
-# Networks
-# ─────────────────────────────────────────────────────────────
-# Why networks?
-# → 讓所有服務可以互相溝通
-# → 隔離其他不相關的容器
+
+volumes:
+  ollama_data:
+
 networks:
   scribot-network:
-    # Why driver: bridge?
-    # → 預設的網路驅動
-    # → 讓容器之間可以通訊
     driver: bridge

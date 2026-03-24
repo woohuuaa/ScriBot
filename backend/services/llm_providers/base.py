@@ -12,16 +12,7 @@ from typing import AsyncGenerator
 class BaseLLMProvider(ABC):
     """
     Abstract base class for all LLM providers
-    
-    所有 LLM Provider 必須實作：
-    1. generate_stream() - 串流生成回應
-    2. get_name() - 取得 Provider 名稱
-    
-    Why abstract?
-    → 確保所有 Provider 有一致的介面
-    → 避免某個 Provider 漏掉實作某個方法
     """
-    
     @abstractmethod
     async def generate_stream(
         self, 

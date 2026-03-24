@@ -6,13 +6,7 @@ from config import settings
 # Ollama Provider Class
 # ─────────────────────────────────────────────────────────────
 class OllamaProvider(BaseLLMProvider):
-    """
-    Ollama local LLM provider
-    
-    API format:
-    POST http://localhost:11434/api/generate
-    """
-    
+
     def __init__(self):
         self.base_url = settings.ollama_base_url
         self.model = settings.ollama_model
@@ -32,15 +26,17 @@ class OllamaProvider(BaseLLMProvider):
         # ─────────────────────────────────────────────────────────
         # Build the API URL
         # ─────────────────────────────────────────────────────────
-        url = f"{self.base_url}/api/generate"
-        # Example: "http://localhost:11434/api/generate"
+        url = f"{self.base_url}/api/chat"
+        # Example: "http://localhost:11434/api/chat"
         
         # ─────────────────────────────────────────────────────────
-        # Prepare request body
+        # Prepare request body (OpenAI-compatible format)
         # ─────────────────────────────────────────────────────────
         payload = {
             "model": self.model,
-            "prompt": prompt,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
             "stream": True,  # Enable streaming
         }
         
@@ -65,8 +61,9 @@ class OllamaProvider(BaseLLMProvider):
                 # 如果 status code 不是 200-299，會拋出例外
                 
                 # ─────────────────────────────────────────────────────────
-                # Parse SSE stream
+                # Parse streaming JSON lines
                 # ─────────────────────────────────────────────────────────
+                import json
                 async for line in response.aiter_lines():
                     # response.aiter_lines() = iterate over lines in response
                     
@@ -74,37 +71,27 @@ class OllamaProvider(BaseLLMProvider):
                     if not line:
                         continue
                     
-                    # Skip lines starting with ":" (SSE comments)
-                    if line.startswith(":"):
-                        continue
-                    
-                    # Parse the JSON
-                    # Line format: data: {"response": "K", ...}
+                    # Remove "data:" prefix if present (SSE format)
                     if line.startswith("data:"):
-                        json_str = line[5:].strip()  # Remove "data:" prefix
-                        # "data: {"response": "K"}" → '{"response": "K"}'
+                        json_str = line[5:].strip()
+                    else:
+                        json_str = line
+                    
+                    try:
+                        data = json.loads(json_str)
+                        # data = {"message": {"content": "K"}, "done": False}
                         
-                        import json
-                        try:
-                            data = json.loads(json_str)
-                            # Convert JSON string to Python dict
-                            # '{"response": "K"}' → {"response": "K"}
+                        content = data.get("message", {}).get("content", "")
+                        
+                        if content:
+                            yield content
+                        
+                        # Check if generation is done
+                        if data.get("done", False):
+                            break
                             
-                            token = data.get("response", "")
-                            # Get "response" field / 取得 "response" 欄位
-                            # data = {"response": "K", "done": False}
-                            # token = "K"
-                            
-                            if token:
-                                yield token
-                                # Yield = send to API endpoint
-                            
-                            # Check if generation is done
-                            if data.get("done", False):
-                                break
-                                
-                        except json.JSONDecodeError:
-                            continue
+                    except json.JSONDecodeError:
+                        continue
 # ─────────────────────────────────────────────────────────────
 # Example usage
 # ─────────────────────────────────────────────────────────────
