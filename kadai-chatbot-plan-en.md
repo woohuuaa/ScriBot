@@ -31,6 +31,61 @@ Build an AI chatbot aligned with course technologies, targeting Autodesk Interns
 
 ---
 
+## Technology Selection Rationale
+
+### Why Qdrant for Vector Database?
+
+| Feature | Qdrant | Pinecone | Chroma | Milvus |
+|---------|--------|----------|--------|--------|
+| Open Source | ✅ Fully open | ❌ Closed SaaS | ✅ Open | ✅ Open |
+| Self-hosted | ✅ One-line Docker | ❌ Cloud only | ✅ Lightweight | ✅ But heavy |
+| Free | ✅ Completely free | ❌ Paid | ✅ Free | ✅ Free |
+| Performance | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Ease of Use | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ |
+
+**Reasons:**
+1. **One-line Docker setup** - Aligns with course Docker deployment
+2. **Free + Open source** - Data stays on your machine, no account needed
+3. **Great Python SDK** - `qdrant-client` is clean and intuitive
+4. **Complete REST API** - Easy to debug and test
+5. **Industry adoption** - Used by Notion, Podimo, etc.
+
+### Why Ollama as Primary LLM?
+
+| Feature | Ollama (Local) | Groq (Cloud) | OpenAI (Cloud) |
+|---------|---------------|--------------|----------------|
+| Cost | $0 | Free tier | Paid |
+| Latency | Higher | Very low | Low |
+| Privacy | ✅ Data stays local | ❌ Sent to cloud | ❌ Sent to cloud |
+| Offline | ✅ Works offline | ❌ Needs internet | ❌ Needs internet |
+| Reliability | Depends on hardware | High | High |
+
+**Reasons:**
+1. **Zero cost** - Runs locally, completely free
+2. **Consistent with KDAI** - KDAI also uses Ollama
+3. **Privacy-friendly** - Data never leaves your machine
+4. **Learning value** - Understand local LLM deployment
+
+**Fallback strategy:** Ollama (fail) → Groq (fail) → OpenAI
+
+### Why FastAPI?
+
+| Feature | FastAPI | Flask | Django |
+|---------|---------|-------|--------|
+| Performance | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
+| Async Support | ✅ Native | ❌ Needs extension | ❌ Needs extension |
+| Type Validation | ✅ Pydantic | ❌ Needs extension | ❌ Needs extension |
+| Auto Docs | ✅ Swagger UI | ❌ Needs extension | ❌ Needs extension |
+| Learning Curve | Low | Low | High |
+
+**Reasons:**
+1. **Native Async** - Perfect for LLM streaming and SSE
+2. **Pydantic validation** - Automatic type checking
+3. **Auto API docs** - `/docs` generates Swagger UI automatically
+4. **AI ecosystem** - Most AI projects use FastAPI
+
+---
+
 ## Model Configuration
 
 | Environment | Model | VRAM / Cost |

@@ -1,0 +1,33 @@
+# Environment files (contain API keys)
+.env
+*.env
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Qdrant storage (local data)
+qdrant_storage/
+
+# Docker
+*.log
+
+# Node (for Vue widget later)
+node_modules/
+dist/
