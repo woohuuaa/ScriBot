@@ -110,8 +110,4 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
 # ─────────────────────────────────────────────────────────────
 # Singleton Instance
 # ─────────────────────────────────────────────────────────────
-# Why singleton?
-#   - One global instance / 全域只有一個實例
-#   - Avoids creating new Settings() everywhere / 避免到處 new Settings()
-#   - Configuration should be consistent / 確保設定一致
 settings = Settings()
