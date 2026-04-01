@@ -29,8 +29,8 @@ Agent:
 ```
 backend/services/
 ├── embedder.py              ✅ 已完成
-├── qdrant_client.py         📋 Day 1
-├── chunker.py               📋 Day 1
+├── qdrant_client.py         ✅ Day 1 完成
+├── chunker.py               ✅ Day 1 完成
 ├── rag.py                   📋 Day 2
 │
 └── agent/                   🆕 Day 4-6
@@ -52,7 +52,7 @@ backend/main.py              📋 Day 3 + Day 6
 
 ## Day 1: qdrant_client.py + chunker.py
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
 
 ### Task 1.1: qdrant_client.py
 
@@ -1481,10 +1481,10 @@ curl -X POST http://localhost:8000/api/agent/run \
 ## Checklist
 
 ### Day 1
-- [ ] 創建 `backend/services/qdrant_client.py`
-- [ ] 創建 `backend/services/chunker.py`
-- [ ] 測試 Qdrant 連接
-- [ ] 測試 chunker 分塊
+- [x] 創建 `backend/services/qdrant_client.py`
+- [x] 創建 `backend/services/chunker.py`
+- [x] 測試 Qdrant 連接
+- [x] 測試 chunker 分塊 (33 MDX files → 639 chunks)
 
 ### Day 2
 - [ ] 創建 `backend/scripts/index_docs.py`
