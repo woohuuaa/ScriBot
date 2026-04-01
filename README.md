@@ -1,229 +1,197 @@
 # ScriBot
 
-> AI-Powered RAG Chatbot for KDAI Documentation
+> **RAG-Powered AI Agent** for KDAI Documentation with ReAct Architecture
 
-## Overview
+## What is This?
 
-ScriBot is a side project that implements a full RAG (Retrieval-Augmented Generation) pipeline for the KDAI documentation website. It demonstrates end-to-end AI application development with A/B testing, statistical analysis, and personalization features.
+ScriBot is a **documentation assistant** that uses:
+- **RAG (Retrieval-Augmented Generation)** to search and cite 30+ technical documents
+- **ReAct Agent Architecture** for multi-step reasoning
+- **Vector Embeddings** (Qdrant + nomic-embed-text) for semantic search
+- **Multiple LLM Providers** (Ollama/Groq/OpenAI) with automatic fallback
 
-**Target:** Autodesk Internship application - aligned with course technologies (Docker, AWS EC2, GitHub Actions, DynamoDB).
+```
+User: "How do I deploy KDAI with Docker?"
+
+Agent:
+┌────────────────────────────────────────────────────────────┐
+│ Thought: User wants deployment instructions. Let me search │
+│ Action: search_docs                                        │
+│ Action Input: {"query": "KDAI Docker deployment setup"}    │
+│                                                            │
+│ Observation: Found relevant docs in install.mdx...         │
+│                                                            │
+│ Thought: I have enough information to answer.              │
+│ Final Answer: To deploy KDAI with Docker:                  │
+│   1. Clone the repository                                  │
+│   2. Run `docker compose up -d`                            │
+│   ...                                                      │
+│                                                            │
+│ Sources: install.mdx, docker-setup.mdx                     │
+└────────────────────────────────────────────────────────────┘
+```
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Vue.js Chat Widget                         │
-│                     (Embedded in Docs)                          │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │ SSE Stream
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    FastAPI Backend (AWS EC2)                    │
-│                       (Docker Container)                        │
+│                         FastAPI Backend                         │
 │                                                                 │
-│  POST /api/index          ← Index docs (33 MDX files)           │
-│  POST /api/chat           ← SSE streaming response              │
-│  GET  /api/health         ← Health check                        │
-│  GET  /api/stats          ← Monitoring statistics               │
-│  POST /api/feedback       ← User feedback                       │
-│  GET  /api/history        ← Query history                       │
-│  POST /api/select-provider← Select LLM Provider                 │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  Monitoring Layer                                         │  │
-│  │  ├── Latency tracking                                     │  │
-│  │  ├── Cost estimation                                      │  │
-│  │  ├── Token counting                                       │  │
-│  │  └── Fallback count                                       │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │  A/B Testing Layer                                        │  │
-│  │  ├── User provider selection                              │  │
-│  │  ├── Provider usage stats                                 │  │
-│  │  └── User feedback collection                             │  │
-│  └───────────────────────────────────────────────────────────┘  │
+│  POST /api/chat        ← RAG-enhanced chat                      │
+│  POST /api/agent/run   ← ReAct Agent with multi-step reasoning  │
+│  GET  /api/health      ← Health check                           │
 └──────────────────────────────┬──────────────────────────────────┘
                                │
-         ┌─────────────────────┼─────────────────────┐
-         ▼                     ▼                     ▼
-┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-│     Ollama      │   │      Groq       │   │     OpenAI      │
-│   (Primary)     │   │    (Backup)     │   │    (Backup)     │
-│   llama3.1:8b   │   │ llama-3.3-70b   │   │   gpt-4o-mini   │
-│   Local/$0      │   │    Free tier    │   │   $5 credit     │
-└─────────────────┘   └─────────────────┘   └─────────────────┘
-                               │
-         ┌─────────────────────┴─────────────────────┐
-         ▼                                           ▼
-┌─────────────────┐                         ┌─────────────────┐
-│     Qdrant      │                         │    DynamoDB     │
-│   (Vector DB)   │                         │  (User History) │
-└─────────────────┘                         └─────────────────┘
+        ┌──────────────────────┼──────────────────────┐
+        ▼                      ▼                      ▼
+┌───────────────┐      ┌───────────────┐      ┌───────────────┐
+│    Qdrant     │      │    Ollama     │      │     Groq      │
+│  Vector DB    │      │  Embeddings   │      │     LLM       │
+│  (Semantic    │      │  + Local LLM  │      │  (Cloud LLM)  │
+│   Search)     │      │               │      │               │
+└───────────────┘      └───────────────┘      └───────────────┘
 ```
 
-## Tech Stack (Aligned with Course)
+## Key Technical Decisions
 
-| Component | Technology | Course Week |
-|-----------|------------|-------------|
-| Backend | FastAPI (Python) | Week 1: Microservices |
-| Frontend | Vue.js widget | Frontend development |
-| LLM | Ollama + Groq + OpenAI | Triple redundancy |
-| Embedding | nomic-embed-text | Ollama recommended |
-| Vector DB | Qdrant | AI vector database |
-| Container | Docker | Week 5-7: Docker |
-| Orchestration | Docker Compose | Week 10: Docker Compose |
-| CI/CD | GitHub Actions | Week 3, 8: GitHub Actions |
-| Deployment | AWS EC2 | Week 4: EC2 |
-| Database | DynamoDB | Week 12: DynamoDB |
-
-## Key Features
-
-- **Full RAG Implementation** - Hand-written pipeline (no LangChain)
-- **Triple LLM Fallback** - Ollama → Groq → OpenAI for reliability
-- **A/B Testing Framework** - User can select and compare LLM providers
-- **Statistical Analysis** - Track latency, cost, tokens, and user feedback
-- **Personalization** - Query history stored in DynamoDB
-- **Streaming Responses** - SSE for real-time, ChatGPT-style UX
-- **Local LLM** - Zero API costs with Ollama as primary
-
-## RAG Pipeline
-
-```
-Step 1: Index
-  33 MDX → Parse → Chunk (500 tokens) → nomic-embed-text → Qdrant
-
-Step 2: Search
-  Question → Embed → Cosine similarity → Top-3 chunks + scores
-
-Step 3: Generate
-  Question + chunks → Prompt → LLM → SSE streaming
-                  │
-                  ├── Latency tracking
-                  ├── Cost tracking
-                  └── Token counting
-```
-
-## Fallback Logic
-
-```
-Request →
-  Try Ollama (local) →
-    Failed → Try Groq (cloud free) →
-      Failed → Try OpenAI (paid backup) →
-        All failed → Return error message
-```
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/index` | Index all .mdx files |
-| POST | `/api/chat` | SSE streaming response |
-| GET | `/api/health` | Health check |
-| GET | `/api/stats` | Monitoring statistics |
-| POST | `/api/feedback` | Submit user feedback |
-| GET | `/api/history` | Get query history |
-| POST | `/api/select-provider` | Select LLM Provider |
+| Decision | Why |
+|----------|-----|
+| **Qdrant** (not Pinecone/Chroma) | Open-source, self-hosted, production-ready REST API |
+| **Cosine Similarity** (not Euclidean) | Compares semantic "direction" not magnitude - ideal for text embeddings |
+| **ReAct Agent** (not simple RAG) | Multi-step reasoning, transparent thought process, extensible tool system |
+| **Hand-written Pipeline** (not LangChain) | Full control, no abstraction overhead, interview-ready code |
 
 ## Project Structure
 
 ```
 ScriBot/
-├── docker-compose.yml         # Multi-container management
+├── docker-compose.yml              # Ollama + Backend + Qdrant
 ├── backend/
-│   ├── Dockerfile             # Backend containerization
-│   ├── main.py                # FastAPI entry
-│   ├── config.py              # Configuration management
-│   ├── routers/
-│   │   └── chat.py            # API endpoints
+│   ├── main.py                     # FastAPI endpoints
+│   ├── config.py                   # Settings (embedding dim, top-k, etc.)
+│   │
 │   ├── services/
-│   │   ├── llm_providers/     # LLM Provider abstraction
-│   │   │   ├── base.py
-│   │   │   ├── ollama.py
-│   │   │   ├── groq.py
-│   │   │   └── openai.py
-│   │   ├── embedder.py        # Embedding service
-│   │   ├── searcher.py        # Qdrant search
-│   │   ├── generator.py       # LLM generation
-│   │   ├── monitor.py         # Monitoring service
-│   │   └── dynamodb.py        # DynamoDB operations
-│   ├── models/
-│   │   └── schemas.py
+│   │   ├── embedder.py             # Ollama embedding (nomic-embed-text)
+│   │   ├── qdrant_client.py        # Vector DB operations
+│   │   ├── chunker.py              # MDX parsing + text chunking
+│   │   ├── rag.py                  # RAG pipeline (retrieve + context)
+│   │   │
+│   │   ├── agent/                  # ReAct Agent
+│   │   │   ├── agent.py            # Agent loop (Thought → Action → Observation)
+│   │   │   ├── prompts.py          # System prompts
+│   │   │   └── tools/
+│   │   │       ├── base.py         # Tool abstract base class
+│   │   │       └── search_docs.py  # RAG as a tool
+│   │   │
+│   │   └── llm_providers/          # LLM abstraction
+│   │       ├── base.py             # Abstract base class
+│   │       ├── ollama.py           # Local LLM
+│   │       ├── groq.py             # Cloud LLM (free tier)
+│   │       └── openai.py           # Cloud LLM (paid)
+│   │
 │   └── scripts/
-│       └── index_docs.py
-├── chatbot_widget/            # Vue.js widget
-├── Docs/                      # KDAI documentation (33 MDX files)
-├── .github/
-│   └── workflows/
-│       ├── ci.yml             # CI pipeline
-│       └── cd.yml             # CD pipeline
-└── README.md
+│       └── index_docs.py           # Index 30+ MDX files into Qdrant
+│
+└── Docs/src/content/docs/          # KDAI documentation (30+ MDX files)
 ```
 
-## Progress
+## RAG Pipeline
 
-### Week 1: Core Architecture + Docker (Completed)
-- [x] Project structure + Dockerfile
-- [x] docker-compose.yml (Ollama + Backend + Qdrant)
-- [x] FastAPI basic architecture
-- [x] Three LLM Provider integration (Ollama/Groq/OpenAI)
-- [x] Basic `/api/chat` and `/api/health` endpoints
-- [x] `docker compose up` successfully runs all services
-- [ ] System prompt configuration (in progress)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Step 1: Indexing (Offline)                                      │
+│                                                                 │
+│   MDX Files → Clean (remove frontmatter, imports, mermaid)      │
+│            → Chunk (by ## headings)                             │
+│            → Embed (nomic-embed-text → 768-dim vectors)         │
+│            → Store (Qdrant with payload: source, title, content)│
+└─────────────────────────────────────────────────────────────────┘
 
-### Week 2: RAG Pipeline + DynamoDB (Not Started)
-- [ ] Qdrant integration + Embedding
-- [ ] DynamoDB setup + user history
-- [ ] Monitoring Layer (Latency/Cost)
-- [ ] RAG Pipeline complete
+┌─────────────────────────────────────────────────────────────────┐
+│ Step 2: Query (Online)                                          │
+│                                                                 │
+│   User Question → Embed → Cosine Search (top-3)                 │
+│                → Build Context → LLM Prompt → Response          │
+│                                                                 │
+│   Returns: Answer + Source Citations                            │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-### Week 3: CI/CD + A/B Testing (Not Started)
-- [ ] GitHub Actions CI workflow
-- [ ] A/B Testing Framework
-- [ ] User Feedback collection
-- [ ] Basic Widget
+## ReAct Agent Architecture
 
-### Week 4: AWS EC2 Deployment (Not Started)
-- [ ] AWS EC2 setup + deployment
-- [ ] CD Pipeline (GitHub Actions)
-- [ ] Personalization + polish
+The agent uses **Reasoning + Acting** pattern:
+
+```python
+# Simplified agent loop
+while not done:
+    # 1. LLM generates thought + action
+    response = llm.generate(messages)
+    
+    # 2. Parse response
+    thought, action, action_input = parse(response)
+    
+    # 3. Execute tool
+    observation = tools[action].execute(**action_input)
+    
+    # 4. Add observation to context
+    messages.append(f"Observation: {observation}")
+    
+    # 5. Check for final answer
+    if "Final Answer" in response:
+        return extract_final_answer(response)
+```
+
+**Why ReAct?**
+- Transparent reasoning (can debug/explain each step)
+- Modular tool system (easy to add new capabilities)
+- Multi-step problem solving (not just single-shot Q&A)
 
 ## Quick Start
 
 ```bash
-# Start all services
+# 1. Start all services
 docker compose up -d
 
-# Check health
-curl http://localhost:8000/api/health
+# 2. Index documentation (first time only)
+docker compose exec backend python -m scripts.index_docs
 
-# Chat (SSE streaming)
+# 3. Test RAG chat
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "What is KDAI?"}'
+
+# 4. Test Agent
+curl -X POST http://localhost:8000/api/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Explain KDAI architecture and how to install it"}'
 ```
 
-## Connection to KDAI
+## Tech Stack
 
-- Uses same Ollama setup as KDAI
-- Follows KDAI's Docker Compose microservices pattern
-- Addresses KDAI's lack of semantic search functionality
-- Python microservices architecture consistent with KDAI ATTS services
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Backend** | FastAPI (Python) | Async API server |
+| **Vector DB** | Qdrant | Semantic search with cosine similarity |
+| **Embeddings** | Ollama (nomic-embed-text) | 768-dim text embeddings |
+| **LLM** | Groq / Ollama / OpenAI | Response generation |
+| **Container** | Docker Compose | Multi-service orchestration |
 
-## Resume Description
+## What I Learned
 
-```
-ScriBot - AI-Powered Documentation Chatbot (Side Project)
+1. **RAG Pipeline Design** - Chunking strategy matters (by headings > fixed size)
+2. **Vector Search** - Cosine similarity for semantic meaning, not just keywords
+3. **Agent Architecture** - ReAct pattern for transparent multi-step reasoning
+4. **Prompt Engineering** - Structured output format for reliable parsing
+5. **Async Python** - httpx + asyncio for concurrent embedding requests
 
-- RAG-based Q&A chatbot deployed on AWS EC2 with Docker containerization
-- A/B testing framework for LLM provider comparison (Ollama/Groq/OpenAI)
-- Statistical analysis: tracking latency, cost, and user feedback metrics
-- Personalization: storing user query history in DynamoDB
-- Full stack: FastAPI backend + Vue.js widget + Qdrant vector database
-- CI/CD with GitHub Actions (automated testing and deployment)
+## Related: KDAI Project
 
-Technologies: Python, FastAPI, Docker, AWS EC2, DynamoDB, GitHub Actions, Vue.js
-```
+This chatbot is built for [KDAI](https://github.com/example/kdai) documentation. My contributions to KDAI include:
+
+- **Built question extraction feature end-to-end** - Backend buffering system, LLM integration, Vue.js frontend
+- **Developed context-aware UI** - Shows extracted questions with source transcript references and click-to-navigate
+- **Engineered real-time buffering pipeline** - Aggregates streaming transcripts for accurate LLM processing
+- **Optimized LLM prompts** - Improved question identification for Dutch parliamentary debates
 
 ## License
 
