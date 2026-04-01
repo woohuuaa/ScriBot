@@ -51,7 +51,7 @@ backend/main.py              📋 Day 3 + Day 6
 ---
 
 <details>
-<summary>## Day 1: qdrant_client.py + chunker.py ✅ 完成 (點擊展開)</summary>
+<summary><b>Day 1: qdrant_client.py + chunker.py ✅ 完成</b> (點擊展開)</summary>
 
 ### Task 1.1: qdrant_client.py
 
