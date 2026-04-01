@@ -50,9 +50,8 @@ backend/main.py              📋 Day 3 + Day 6
 
 ---
 
-## Day 1: qdrant_client.py + chunker.py
-
-### 狀態: ✅ 完成
+<details>
+<summary>## Day 1: qdrant_client.py + chunker.py ✅ 完成 (點擊展開)</summary>
 
 ### Task 1.1: qdrant_client.py
 
@@ -504,6 +503,8 @@ from services.qdrant_client import qdrant_service
 qdrant_service.create_collection()
 print(qdrant_service.get_collection_info())
 ```
+
+</details>
 
 ---
 
