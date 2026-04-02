@@ -1,7 +1,17 @@
 # ScriBot RAG + Agent 實作計劃
 
 ## 目標
-在 5-6 天內完成 **簡化版 AI Agent**，包含 RAG 搜尋功能。
+在 8 天內完成 **AI Agent with 5 Tools**，包含 RAG 搜尋 + 知識庫管理功能。
+
+## 5 個 Tools
+
+| Tool | 功能 | Day |
+|------|------|-----|
+| `search_docs` | 語意搜尋文檔 | Day 5 |
+| `list_docs` | 列出所有文檔 | Day 6 |
+| `get_doc_info` | 取得文檔詳情 | Day 6 |
+| `create_doc` | 新增文件 + 自動索引 | Day 7 |
+| `delete_doc` | 刪除文件 + 移除索引 | Day 7 |
 
 ## 完成後可展示
 ```
@@ -29,30 +39,33 @@ Agent:
 ```
 backend/services/
 ├── embedder.py              ✅ 已完成
-├── qdrant_client.py         📋 Day 1
-├── chunker.py               📋 Day 1
+├── qdrant_client.py         ✅ Day 1 完成
+├── chunker.py               ✅ Day 1 完成
 ├── rag.py                   📋 Day 2
 │
-└── agent/                   🆕 Day 4-6
-    ├── __init__.py
+└── agent/                   🆕 Day 4-8
+    ├── __init__.py          📋 Day 8
     ├── tools/
-    │   ├── __init__.py
+    │   ├── __init__.py      📋 Day 8
     │   ├── base.py          📋 Day 4
-    │   └── search_docs.py   📋 Day 5
+    │   ├── search_docs.py   📋 Day 5
+    │   ├── list_docs.py     📋 Day 6
+    │   ├── get_doc_info.py  📋 Day 6
+    │   ├── create_doc.py    📋 Day 7
+    │   └── delete_doc.py    📋 Day 7
     ├── agent.py             📋 Day 4
     └── prompts.py           📋 Day 4
 
 backend/scripts/
 └── index_docs.py            📋 Day 2
 
-backend/main.py              📋 Day 3 + Day 6
+backend/main.py              📋 Day 3 + Day 8
 ```
 
 ---
 
-## Day 1: qdrant_client.py + chunker.py
-
-### 狀態: ⬜ 未開始
+<details>
+<summary><b>Day 1: qdrant_client.py + chunker.py ✅ 完成</b> (點擊展開)</summary>
 
 ### Task 1.1: qdrant_client.py
 
@@ -504,6 +517,8 @@ from services.qdrant_client import qdrant_service
 qdrant_service.create_collection()
 print(qdrant_service.get_collection_info())
 ```
+
+</details>
 
 ---
 
@@ -1384,15 +1399,535 @@ __all__ = ["Tool", "SearchDocsTool"]
 
 ---
 
-## Day 6: API Endpoint + 測試
+## Day 6: `list_docs` + `get_doc_info` Tools
 
 ### 狀態: ⬜ 未開始
 
-### Task 6.1: 更新 main.py
+### Task 6.1: list_docs.py
+
+**位置:** `backend/services/agent/tools/list_docs.py`
+
+**功能:** 列出知識庫中所有已索引的文檔
+
+**Code:**
+```python
+from services.agent.tools.base import Tool
+from services.qdrant_client import qdrant_service
+
+# ─────────────────────────────────────────────────────────────
+# List Docs Tool
+# 列出文檔工具
+# ─────────────────────────────────────────────────────────────
+
+
+class ListDocsTool(Tool):
+    """
+    Tool for listing all indexed documents
+    列出所有已索引文檔的工具
+    """
+    
+    @property
+    def name(self) -> str:
+        return "list_docs"
+    
+    @property
+    def description(self) -> str:
+        return """List all documents in the KDAI knowledge base.
+Use this tool when you need to know what documents are available,
+or when the user asks about the documentation structure."""
+    
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    
+    async def execute(self) -> str:
+        """
+        List all unique document sources from Qdrant
+        從 Qdrant 列出所有唯一的文檔來源
+        """
+        # Get all points and extract unique sources
+        # 獲取所有點並提取唯一的來源
+        try:
+            # Scroll through all points to get sources
+            # 滾動所有點以獲取來源
+            results, _ = qdrant_service.client.scroll(
+                collection_name=qdrant_service.collection_name,
+                limit=1000,  # Should be enough for our docs
+                with_payload=True,
+                with_vectors=False,
+            )
+            
+            # Extract unique sources
+            # 提取唯一的來源
+            sources = set()
+            for point in results:
+                if "source" in point.payload:
+                    sources.add(point.payload["source"])
+            
+            if not sources:
+                return "No documents found in the knowledge base."
+            
+            # Format output
+            # 格式化輸出
+            doc_list = sorted(sources)
+            output = f"Found {len(doc_list)} documents in the knowledge base:\n\n"
+            for doc in doc_list:
+                output += f"- {doc}\n"
+            
+            return output
+            
+        except Exception as e:
+            return f"Error listing documents: {str(e)}"
+```
+
+---
+
+### Task 6.2: get_doc_info.py
+
+**位置:** `backend/services/agent/tools/get_doc_info.py`
+
+**功能:** 取得特定文檔的詳細資訊（chunk 數量、標題、內容預覽）
+
+**Code:**
+```python
+from services.agent.tools.base import Tool
+from services.qdrant_client import qdrant_service
+from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+# ─────────────────────────────────────────────────────────────
+# Get Doc Info Tool
+# 取得文檔資訊工具
+# ─────────────────────────────────────────────────────────────
+
+
+class GetDocInfoTool(Tool):
+    """
+    Tool for getting detailed information about a specific document
+    取得特定文檔詳細資訊的工具
+    """
+    
+    @property
+    def name(self) -> str:
+        return "get_doc_info"
+    
+    @property
+    def description(self) -> str:
+        return """Get detailed information about a specific document in the knowledge base.
+Use this tool when you need to know the structure or content of a specific document.
+Returns: number of chunks, section titles, and content preview."""
+    
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "The document filename (e.g., 'architecture.mdx')"
+                }
+            },
+            "required": ["filename"]
+        }
+    
+    async def execute(self, filename: str) -> str:
+        """
+        Get information about a specific document
+        取得特定文檔的資訊
+        """
+        try:
+            # Filter by source filename
+            # 按來源文件名過濾
+            results, _ = qdrant_service.client.scroll(
+                collection_name=qdrant_service.collection_name,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="source",
+                            match=MatchValue(value=filename)
+                        )
+                    ]
+                ),
+                limit=100,
+                with_payload=True,
+                with_vectors=False,
+            )
+            
+            if not results:
+                return f"Document '{filename}' not found in the knowledge base."
+            
+            # Extract information
+            # 提取資訊
+            chunks = []
+            titles = set()
+            
+            for point in results:
+                payload = point.payload
+                chunks.append(payload.get("content", ""))
+                if payload.get("title"):
+                    titles.add(payload["title"])
+            
+            # Format output
+            # 格式化輸出
+            output = f"## Document: {filename}\n\n"
+            output += f"**Chunks:** {len(chunks)}\n\n"
+            
+            if titles:
+                output += f"**Sections:**\n"
+                for title in sorted(titles):
+                    output += f"- {title}\n"
+                output += "\n"
+            
+            # Content preview (first chunk)
+            # 內容預覽（第一個 chunk）
+            if chunks:
+                preview = chunks[0][:300] + "..." if len(chunks[0]) > 300 else chunks[0]
+                output += f"**Preview:**\n{preview}\n"
+            
+            return output
+            
+        except Exception as e:
+            return f"Error getting document info: {str(e)}"
+```
+
+---
+
+## Day 7: `create_doc` + `delete_doc` Tools
+
+### 狀態: ⬜ 未開始
+
+### Task 7.1: create_doc.py
+
+**位置:** `backend/services/agent/tools/create_doc.py`
+
+**功能:** 新增文件到知識庫（寫入文件 + 自動 chunk + embed + index）
+
+**Code:**
+```python
+from pathlib import Path
+from services.agent.tools.base import Tool
+from services.chunker import chunker
+from services.embedder import embedder
+from services.qdrant_client import qdrant_service
+
+# ─────────────────────────────────────────────────────────────
+# Create Doc Tool
+# 創建文檔工具
+# ─────────────────────────────────────────────────────────────
+#
+# 這個 Tool 會：
+# 1. 將內容寫入 MDX 文件
+# 2. 對文件進行分塊 (chunking)
+# 3. 對每個 chunk 生成 embedding
+# 4. 將 chunks 存入 Qdrant
+# ─────────────────────────────────────────────────────────────
+
+# Path to docs directory (in Docker container)
+# 文檔目錄路徑（在 Docker 容器中）
+DOCS_PATH = Path("/app/Docs/src/content/docs")
+
+
+class CreateDocTool(Tool):
+    """
+    Tool for creating new documents in the knowledge base
+    在知識庫中創建新文檔的工具
+    """
+    
+    @property
+    def name(self) -> str:
+        return "create_doc"
+    
+    @property
+    def description(self) -> str:
+        return """Create a new document and add it to the KDAI knowledge base.
+Use this tool when the user wants to add new documentation.
+The document will be automatically chunked, embedded, and indexed for search.
+Content should be in Markdown format."""
+    
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "Filename for the new document (e.g., 'new-guide.mdx')"
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Document title for the frontmatter"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Document content in Markdown format"
+                }
+            },
+            "required": ["filename", "title", "content"]
+        }
+    
+    async def execute(self, filename: str, title: str, content: str) -> str:
+        """
+        Create a new document and index it
+        創建新文檔並索引
+        """
+        try:
+            # Validate filename
+            # 驗證文件名
+            if not filename.endswith(".mdx"):
+                filename = filename + ".mdx"
+            
+            file_path = DOCS_PATH / filename
+            
+            # Check if file already exists
+            # 檢查文件是否已存在
+            if file_path.exists():
+                return f"Error: Document '{filename}' already exists. Use delete_doc first or choose a different name."
+            
+            # Create MDX content with frontmatter
+            # 創建帶有 frontmatter 的 MDX 內容
+            mdx_content = f"""---
+title: {title}
+description: {title}
+---
+
+{content}
+"""
+            
+            # Step 1: Write file
+            # 步驟 1：寫入文件
+            file_path.write_text(mdx_content, encoding="utf-8")
+            
+            # Step 2: Chunk the file
+            # 步驟 2：對文件進行分塊
+            chunks = chunker.chunk_file(file_path)
+            
+            if not chunks:
+                return f"Warning: Document '{filename}' created but no chunks generated (content may be too short)."
+            
+            # Step 3: Generate embeddings
+            # 步驟 3：生成 embeddings
+            texts = [chunk.content for chunk in chunks]
+            vectors = await embedder.embed_batch(texts, max_concurrent=5)
+            
+            # Step 4: Upsert to Qdrant
+            # 步驟 4：存入 Qdrant
+            ids = [chunk.id for chunk in chunks]
+            payloads = [
+                {
+                    "source": chunk.source,
+                    "title": chunk.title,
+                    "content": chunk.content,
+                }
+                for chunk in chunks
+            ]
+            
+            qdrant_service.upsert_points(ids, vectors, payloads)
+            
+            return f"""Document created successfully!
+
+**File:** {filename}
+**Title:** {title}
+**Chunks indexed:** {len(chunks)}
+
+The document is now searchable in the knowledge base."""
+            
+        except Exception as e:
+            return f"Error creating document: {str(e)}"
+```
+
+---
+
+### Task 7.2: delete_doc.py
+
+**位置:** `backend/services/agent/tools/delete_doc.py`
+
+**功能:** 從知識庫刪除文件（刪除 Qdrant 中的 chunks + 刪除實體文件）
+
+**Code:**
+```python
+from pathlib import Path
+from services.agent.tools.base import Tool
+from services.qdrant_client import qdrant_service
+from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+# ─────────────────────────────────────────────────────────────
+# Delete Doc Tool
+# 刪除文檔工具
+# ─────────────────────────────────────────────────────────────
+
+# Path to docs directory (in Docker container)
+DOCS_PATH = Path("/app/Docs/src/content/docs")
+
+
+class DeleteDocTool(Tool):
+    """
+    Tool for deleting documents from the knowledge base
+    從知識庫刪除文檔的工具
+    """
+    
+    @property
+    def name(self) -> str:
+        return "delete_doc"
+    
+    @property
+    def description(self) -> str:
+        return """Delete a document from the KDAI knowledge base.
+Use this tool when the user wants to remove documentation.
+This will remove the document file and all its indexed chunks from the vector database."""
+    
+    @property
+    def parameters(self) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "Filename of the document to delete (e.g., 'old-guide.mdx')"
+                }
+            },
+            "required": ["filename"]
+        }
+    
+    async def execute(self, filename: str) -> str:
+        """
+        Delete a document and remove from index
+        刪除文檔並從索引中移除
+        """
+        try:
+            # Validate filename
+            # 驗證文件名
+            if not filename.endswith(".mdx"):
+                filename = filename + ".mdx"
+            
+            file_path = DOCS_PATH / filename
+            
+            # Step 1: Delete from Qdrant
+            # 步驟 1：從 Qdrant 刪除
+            # First, count how many chunks will be deleted
+            # 首先計算將刪除多少 chunks
+            results, _ = qdrant_service.client.scroll(
+                collection_name=qdrant_service.collection_name,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="source",
+                            match=MatchValue(value=filename)
+                        )
+                    ]
+                ),
+                limit=100,
+                with_payload=False,
+                with_vectors=False,
+            )
+            
+            chunks_deleted = len(results)
+            
+            if chunks_deleted > 0:
+                # Delete points by filter
+                # 按過濾條件刪除點
+                qdrant_service.client.delete(
+                    collection_name=qdrant_service.collection_name,
+                    points_selector=Filter(
+                        must=[
+                            FieldCondition(
+                                key="source",
+                                match=MatchValue(value=filename)
+                            )
+                        ]
+                    ),
+                )
+            
+            # Step 2: Delete physical file (if exists)
+            # 步驟 2：刪除實體文件（如果存在）
+            file_deleted = False
+            if file_path.exists():
+                file_path.unlink()
+                file_deleted = True
+            
+            # Format response
+            # 格式化回應
+            if chunks_deleted == 0 and not file_deleted:
+                return f"Document '{filename}' not found in the knowledge base or file system."
+            
+            response = f"Document '{filename}' deleted successfully!\n\n"
+            if chunks_deleted > 0:
+                response += f"**Chunks removed from index:** {chunks_deleted}\n"
+            if file_deleted:
+                response += f"**File deleted:** {file_path}\n"
+            
+            return response
+            
+        except Exception as e:
+            return f"Error deleting document: {str(e)}"
+```
+
+---
+
+## Day 8: API Endpoint + 整合測試
+
+### 狀態: ⬜ 未開始
+
+### Task 8.1: 更新 agent/__init__.py
+
+**位置:** `backend/services/agent/__init__.py`
+
+**Code:**
+```python
+from services.agent.agent import Agent
+from services.agent.tools.search_docs import SearchDocsTool
+from services.agent.tools.list_docs import ListDocsTool
+from services.agent.tools.get_doc_info import GetDocInfoTool
+from services.agent.tools.create_doc import CreateDocTool
+from services.agent.tools.delete_doc import DeleteDocTool
+
+__all__ = [
+    "Agent",
+    "SearchDocsTool",
+    "ListDocsTool",
+    "GetDocInfoTool",
+    "CreateDocTool",
+    "DeleteDocTool",
+]
+```
+
+**位置:** `backend/services/agent/tools/__init__.py`
+
+**Code:**
+```python
+from services.agent.tools.base import Tool
+from services.agent.tools.search_docs import SearchDocsTool
+from services.agent.tools.list_docs import ListDocsTool
+from services.agent.tools.get_doc_info import GetDocInfoTool
+from services.agent.tools.create_doc import CreateDocTool
+from services.agent.tools.delete_doc import DeleteDocTool
+
+__all__ = [
+    "Tool",
+    "SearchDocsTool",
+    "ListDocsTool",
+    "GetDocInfoTool",
+    "CreateDocTool",
+    "DeleteDocTool",
+]
+```
+
+---
+
+### Task 8.2: 更新 main.py
 
 **新增 endpoint:**
 ```python
-from services.agent import Agent, SearchDocsTool
+from services.agent import (
+    Agent,
+    SearchDocsTool,
+    ListDocsTool,
+    GetDocInfoTool,
+    CreateDocTool,
+    DeleteDocTool,
+)
 from pydantic import BaseModel
 
 class AgentRequest(BaseModel):
@@ -1402,16 +1937,23 @@ class AgentRequest(BaseModel):
 @app.post("/api/agent/run")
 async def run_agent(request: AgentRequest):
     """
-    Run the ReAct agent
-    執行 ReAct Agent
+    Run the ReAct agent with all tools
+    執行帶有所有工具的 ReAct Agent
     """
     # Get LLM provider
     provider = get_llm_provider(request.provider)
     
-    # Create agent with tools
+    # Create agent with ALL tools
+    # 創建帶有所有工具的 Agent
     agent = Agent(
         llm_provider=provider,
-        tools=[SearchDocsTool()],
+        tools=[
+            SearchDocsTool(),
+            ListDocsTool(),
+            GetDocInfoTool(),
+            CreateDocTool(),
+            DeleteDocTool(),
+        ],
         max_steps=10,
     )
     
@@ -1428,63 +1970,65 @@ async def run_agent(request: AgentRequest):
 
 ---
 
-### Task 6.2: 測試 Agent
+### Task 8.3: 測試 Agent
 
-**cURL 測試:**
+**測試 1: 搜尋文檔**
 ```bash
 curl -X POST http://localhost:8000/api/agent/run \
   -H "Content-Type: application/json" \
-  -d '{"message": "What is KDAI and how do I install it?", "provider": "groq"}'
+  -d '{"message": "What is KDAI?", "provider": "groq"}'
 ```
 
-**預期回應:**
-```json
-{
-  "answer": "KDAI (KamerDebat AI) is a real-time parliamentary debate transcription system...\n\nTo install KDAI:\n1. Clone the repository\n2. Run docker compose up -d\n...\n\nSources:\n- index.mdx: Introduction\n- install.mdx: Installation",
-  "steps": [
-    {
-      "step": 1,
-      "thought": "User wants to know about KDAI and installation...",
-      "action": "search_docs",
-      "action_input": {"query": "KDAI introduction overview"},
-      "observation": "[1] Source: index.mdx..."
-    },
-    {
-      "step": 2,
-      "thought": "I found info about KDAI, now I need installation steps...",
-      "action": "search_docs",
-      "action_input": {"query": "KDAI installation setup"},
-      "observation": "[1] Source: install.mdx..."
-    },
-    {
-      "step": 3,
-      "thought": "I have enough information to answer...",
-      "final_answer": "KDAI (KamerDebat AI) is..."
-    }
-  ],
-  "sources": [
-    {"source": "index.mdx"},
-    {"source": "install.mdx"}
-  ],
-  "provider": "groq"
-}
+**測試 2: 列出所有文檔**
+```bash
+curl -X POST http://localhost:8000/api/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What documents are in the knowledge base?", "provider": "groq"}'
+```
+
+**測試 3: 取得文檔資訊**
+```bash
+curl -X POST http://localhost:8000/api/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Tell me about the architecture.mdx document", "provider": "groq"}'
+```
+
+**測試 4: 創建新文檔**
+```bash
+curl -X POST http://localhost:8000/api/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Create a new document called test-guide.mdx about how to test the system", "provider": "groq"}'
+```
+
+**測試 5: 刪除文檔**
+```bash
+curl -X POST http://localhost:8000/api/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Delete the test-guide.mdx document", "provider": "groq"}'
+```
+
+**測試 6: 多工具組合使用**
+```bash
+curl -X POST http://localhost:8000/api/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"message": "List all documents, then tell me about the architecture", "provider": "groq"}'
 ```
 
 ---
 
 ## 完成後的 Bullet Point
 
-> • **Built RAG-powered AI agent** using ReAct architecture with modular tool system, Qdrant vector database for semantic search, and multiple LLM providers (Ollama/Groq), enabling multi-step reasoning over 30+ technical documents with source citations
+> • **Built RAG-powered AI agent** using ReAct architecture with 5 modular tools (search, list, info, create, delete), Qdrant vector database for semantic search, and multiple LLM providers (Ollama/Groq), enabling multi-step reasoning and knowledge base management over 30+ technical documents with source citations
 
 ---
 
 ## Checklist
 
 ### Day 1
-- [ ] 創建 `backend/services/qdrant_client.py`
-- [ ] 創建 `backend/services/chunker.py`
-- [ ] 測試 Qdrant 連接
-- [ ] 測試 chunker 分塊
+- [x] 創建 `backend/services/qdrant_client.py`
+- [x] 創建 `backend/services/chunker.py`
+- [x] 測試 Qdrant 連接
+- [x] 測試 chunker 分塊 (33 MDX files → 639 chunks)
 
 ### Day 2
 - [ ] 創建 `backend/scripts/index_docs.py`
@@ -1503,11 +2047,19 @@ curl -X POST http://localhost:8000/api/agent/run \
 
 ### Day 5
 - [ ] 創建 `backend/services/agent/tools/search_docs.py`
-- [ ] 創建 `__init__.py` 文件
 
 ### Day 6
+- [ ] 創建 `backend/services/agent/tools/list_docs.py`
+- [ ] 創建 `backend/services/agent/tools/get_doc_info.py`
+
+### Day 7
+- [ ] 創建 `backend/services/agent/tools/create_doc.py`
+- [ ] 創建 `backend/services/agent/tools/delete_doc.py`
+
+### Day 8
+- [ ] 更新 `__init__.py` 文件
 - [ ] 更新 `backend/main.py` (加入 `/api/agent/run`)
-- [ ] End-to-end 測試 Agent
+- [ ] End-to-end 測試所有 5 個 Tools
 - [ ] 調整 prompt (如果需要)
 
 ---
