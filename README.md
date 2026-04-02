@@ -66,46 +66,6 @@ Agent:
 │   Search)     │          │               │              │               │
 └───────────────┘          └───────────────┘              └───────────────┘
 ```
-User: "How do I deploy KDAI with Docker?"
-
-Agent:
-┌────────────────────────────────────────────────────────────┐
-│ Thought: User wants deployment instructions. Let me search │
-│ Action: search_docs                                        │
-│ Action Input: {"query": "KDAI Docker deployment setup"}    │
-│                                                            │
-│ Observation: Found relevant docs in install.mdx...         │
-│                                                            │
-│ Thought: I have enough information to answer.              │
-│ Final Answer: To deploy KDAI with Docker:                  │
-│   1. Clone the repository                                  │
-│   2. Run `docker compose up -d`                            │
-│   ...                                                      │
-│                                                            │
-│ Sources: install.mdx, docker-setup.mdx                     │
-└────────────────────────────────────────────────────────────┘
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FastAPI Backend                         │
-│                                                                 │
-│  POST /api/chat        ← RAG-enhanced chat                      │
-│  POST /api/agent/run   ← ReAct Agent with multi-step reasoning  │
-│  GET  /api/health      ← Health check                           │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │
-        ┌──────────────────────┼──────────────────────┐
-        ▼                      ▼                      ▼
-┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-│    Qdrant     │      │    Ollama     │      │     Groq      │
-│  Vector DB    │      │  Embeddings   │      │     LLM       │
-│  (Semantic    │      │  + Local LLM  │      │  (Cloud LLM)  │
-│   Search)     │      │               │      │               │
-└───────────────┘      └───────────────┘      └───────────────┘
-```
 
 ## Key Technical Decisions
 
