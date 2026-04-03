@@ -47,11 +47,10 @@ services:
   # ─────────────────────────────────────────────────────────
   qdrant:
     image: qdrant/qdrant:latest
-    command: /bin/sh -c "apt-get update && apt-get install -y curl && ./entrypoint.sh"
     volumes:
       - ./qdrant_storage:/qdrant/storage
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:6333/readyz" ]
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/6333' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

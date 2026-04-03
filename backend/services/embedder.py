@@ -1,5 +1,6 @@
 import httpx
 import asyncio
+from typing import Callable, Optional
 from config import settings
 # ─────────────────────────────────────────────────────────────
 # Embedder Service
@@ -58,7 +59,8 @@ class Embedder:
     async def embed_batch(
         self, 
         texts: list[str], 
-        max_concurrent: int = 5
+        max_concurrent: int = 5,
+        on_progress: Optional[Callable[[], None]] = None
     ) -> list[list[float]]:
         """
         Embed multiple texts in parallel
@@ -66,6 +68,8 @@ class Embedder:
         Args:
             texts: List of texts to embed
             max_concurrent: Max parallel requests to avoid Ollama overload (default: 5)                           (avoid Ollama overload)
+            on_progress: Optional callback called after each embedding completes
+                         用於更新進度條的回調函數
         
         Returns:
             list[list[float]]: List of 768-dim vectors
@@ -81,7 +85,12 @@ class Embedder:
         
         async def embed_with_semaphore(text: str) -> list[float]:
             async with semaphore:
-                return await self.embed(text)
+                result = await self.embed(text)
+                # Call progress callback if provided
+                # 如果有提供進度回調，則呼叫它
+                if on_progress:
+                    on_progress()
+                return result
         
         # 並行執行所有 embedding 請求
         vectors = await asyncio.gather(

@@ -667,6 +667,8 @@ docker compose exec backend python -m scripts.index_docs --recreate
 **功能:**
 - `retrieve()` - 用問題搜尋相關文檔
 - `build_context()` - 把搜尋結果組成 LLM context
+- `build_sources()` - 整理引用來源
+- `query()` - 回傳 retrieval 結果、context 與 sources
 
 **Code:**
 ```python
@@ -830,6 +832,10 @@ rag_service = RAGService()
 
 **修改:** `backend/main.py`
 
+**注意:**
+- 目前 provider 介面是 `generate_stream(prompt)`，不是 `chat_stream(messages)`
+- 因此 Day 3 應該先保留現有 SSE endpoint，將 RAG 建出的完整 prompt 字串交給 provider
+
 **新增內容:**
 ```python
 # 在現有 imports 後加入
@@ -858,18 +864,22 @@ Please answer the question based on the documentation above. If the documentatio
     # Step 3: Get LLM response / 獲取 LLM 回應
     provider = get_llm_provider(request.provider)
     
-    response_text = ""
-    async for chunk in provider.chat_stream([
-        {"role": "user", "content": enhanced_message}
-    ]):
-        response_text += chunk
-    
-    # Step 4: Return with sources / 返回包含來源
-    return {
-        "response": response_text,
-        "sources": rag_result['sources'],
-        "provider": request.provider or settings.default_provider.value,
-    }
+    async def event_generator():
+        try:
+            async for chunk in provider.generate_stream(enhanced_message):
+                yield f"data: {chunk}\n\n"
+        except Exception as e:
+            yield f"data: [Error] {str(e)}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "X-Sources": json.dumps(rag_result["sources"])
+        },
+    )
 ```
 
 ---
@@ -1235,8 +1245,9 @@ class Agent:
     
     async def _get_llm_response(self, messages: list[dict]) -> str:
         """Get response from LLM (non-streaming)"""
+        prompt = "\n\n".join(f"{m['role']}: {m['content']}" for m in messages)
         response = ""
-        async for chunk in self.llm.chat_stream(messages):
+        async for chunk in self.llm.generate_stream(prompt):
             response += chunk
         return response
     
@@ -1451,6 +1462,8 @@ or when the user asks about the documentation structure."""
         """
         # Get all points and extract unique sources
         # 獲取所有點並提取唯一的來源
+        # Note: MVP can use a single scroll call because the dataset is small.
+        # If docs grow larger later, switch to paginated scroll.
         try:
             # Scroll through all points to get sources
             # 滾動所有點以獲取來源
@@ -1539,6 +1552,8 @@ Returns: number of chunks, section titles, and content preview."""
         取得特定文檔的資訊
         """
         try:
+            # Note: MVP uses a fixed scroll limit because current docs are small.
+            # If a document can exceed this number of chunks later, add pagination.
             # Filter by source filename
             # 按來源文件名過濾
             results, _ = qdrant_service.client.scroll(
@@ -1608,6 +1623,7 @@ Returns: number of chunks, section titles, and content preview."""
 **Code:**
 ```python
 from pathlib import Path
+import uuid
 from services.agent.tools.base import Tool
 from services.chunker import chunker
 from services.embedder import embedder
@@ -1714,7 +1730,9 @@ description: {title}
             
             # Step 4: Upsert to Qdrant
             # 步驟 4：存入 Qdrant
-            ids = [chunk.id for chunk in chunks]
+            # Qdrant point IDs must be uint or UUID, not arbitrary strings.
+            # Qdrant point ID 必須是無符號整數或 UUID，不能直接用字串。
+            ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk.id)) for chunk in chunks]
             payloads = [
                 {
                     "source": chunk.source,
@@ -1797,6 +1815,8 @@ This will remove the document file and all its indexed chunks from the vector da
         刪除文檔並從索引中移除
         """
         try:
+            # Note: MVP uses a fixed scroll limit because current docs are small.
+            # If a document can exceed this number of chunks later, add pagination.
             # Validate filename
             # 驗證文件名
             if not filename.endswith(".mdx"):

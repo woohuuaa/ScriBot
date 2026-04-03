@@ -137,12 +137,15 @@ class QdrantService:
             )
         
         # Execute search
-        results = self.client.search(
+        response = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             limit=top_k,
             query_filter=query_filter,
+            with_payload=True,
+            with_vectors=False,
         )
+        results = response.points
         
         # Format results
         return [
