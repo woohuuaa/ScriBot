@@ -293,7 +293,7 @@ qdrant_service = QdrantService()
 - 按標題 (## / ###) 分割成 chunks
 
 **Code:**
-```python
+````python
 import re
 from pathlib import Path
 from dataclasses import dataclass
@@ -476,7 +476,7 @@ class Chunker:
 
 # Singleton instance
 chunker = Chunker()
-```
+````
 
 **關鍵概念解釋:**
 
@@ -522,9 +522,8 @@ print(qdrant_service.get_collection_info())
 
 ---
 
-## Day 2: index_docs.py + rag.py
-
-### 狀態: ⬜ 未開始
+<details>
+<summary><b>Day 2: index_docs.py + rag.py ✅ 完成</b> (點擊展開)</summary>
 
 ### Task 2.1: index_docs.py
 
@@ -822,11 +821,12 @@ rag_service = RAGService()
        Content: Run docker compose up -d to start all services...
    ```
 
+</details>
+
 ---
 
-## Day 3: main.py 更新 + RAG 測試
-
-### 狀態: ⬜ 未開始
+<details>
+<summary><b>Day 3: main.py 更新 + RAG 測試 ✅ 完成</b> (點擊展開)</summary>
 
 ### Task 3.1: 更新 main.py
 
@@ -916,11 +916,13 @@ async def test():
 asyncio.run(test())
 ```
 
+</details>
+
 ---
 
 ## Day 4: Agent 核心架構
 
-### 狀態: ⬜ 未開始
+### 狀態: 🔄 進行中
 
 ### Task 4.1: agent/tools/base.py
 
@@ -1031,7 +1033,7 @@ class Tool(ABC):
 **位置:** `backend/services/agent/prompts.py`
 
 **Code:**
-```python
+````python
 # ─────────────────────────────────────────────────────────────
 # Agent System Prompts
 # Agent 系統提示詞
@@ -1107,7 +1109,7 @@ Final Answer: KDAI (KamerDebat AI) is a real-time parliamentary debate transcrip
 Sources:
 - index.mdx: Introduction
 """
-```
+````
 
 ---
 
