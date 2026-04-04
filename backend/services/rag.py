@@ -64,7 +64,6 @@ class RAGService:
     def _rerank_results(self, query: str, results: list[dict]) -> list[dict]:
         """
         Apply a lightweight lexical reranking on top of vector search.
-        在向量搜尋之上加一層輕量關鍵詞重排。
         """
         query_terms = self._extract_query_terms(query)
         if not query_terms:
@@ -176,6 +175,4 @@ Answer in the same language as the user's question.
             "results": results,
         }
 
-
-# Singleton instance
 rag_service = RAGService()

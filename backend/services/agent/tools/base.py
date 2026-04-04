@@ -1,21 +1,19 @@
 from abc import ABC, abstractmethod
-from typing import Any
 
 # ─────────────────────────────────────────────────────────────
 # Tool Base Class
-# 工具基類
 # ─────────────────────────────────────────────────────────────
 #
-# 為什麼用抽象基類?
-#   - 統一所有 tool 的接口
-#   - Agent 可以動態發現和調用 tools
-#   - 容易擴展新的 tools
+# Why use an abstract base class?
+#   - Standardize the interface for all tools
+#   - Let the Agent discover and call tools dynamically
+#   - Make new tools easy to add
 #
-# 每個 Tool 需要實現:
-#   - name: 工具名稱 (Agent 用這個名稱調用)
-#   - description: 描述 (幫助 Agent 決定何時使用)
-#   - parameters: 參數 schema (JSON Schema 格式)
-#   - execute(): 實際執行邏輯
+# Every tool must implement:
+#   - name: tool name used by the Agent
+#   - description: helps the Agent choose when to use it
+#   - parameters: JSON Schema for tool inputs
+#   - execute(): actual tool logic
 # ─────────────────────────────────────────────────────────────
 
 

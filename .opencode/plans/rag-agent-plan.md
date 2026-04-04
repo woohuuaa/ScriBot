@@ -44,11 +44,11 @@ backend/services/
 ├── rag.py                   ✅ Day 2 完成
 │
 └── agent/                   🔄 Day 4-8
-    ├── __init__.py          📋 待建立
+    ├── __init__.py          ✅ Day 5 完成
     ├── tools/
-    │   ├── __init__.py      📋 待建立
+    │   ├── __init__.py      ✅ Day 5 完成
     │   ├── base.py          ✅ Day 4 完成
-    │   ├── search_docs.py   📋 Day 5
+    │   ├── search_docs.py   ✅ Day 5 完成
     │   ├── list_docs.py     📋 Day 6
     │   ├── get_doc_info.py  📋 Day 6
     │   ├── create_doc.py    📋 Day 7
@@ -1293,10 +1293,10 @@ class Agent:
 
 ---
 
-<details open>
-<summary><b>Day 5: search_docs Tool</b> (點擊收合)</summary>
+<details>
+<summary><b>Day 5: search_docs Tool ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
 
 ### Task 5.1: agent/tools/search_docs.py
 
@@ -2062,7 +2062,10 @@ curl -X POST http://localhost:8000/api/agent/run \
 - [x] 創建 `backend/services/agent/agent.py`
 
 ### Day 5
-- [ ] 創建 `backend/services/agent/tools/search_docs.py`
+- [x] 創建 `backend/services/agent/tools/search_docs.py`
+- [x] 更新 `backend/services/agent/__init__.py`
+- [x] 更新 `backend/services/agent/tools/__init__.py`
+- [x] 測試 `SearchDocsTool` 與最小 Agent 整合
 
 ### Day 6
 - [ ] 創建 `backend/services/agent/tools/list_docs.py`
