@@ -25,7 +25,7 @@ class BaseLLMProvider(ABC):
             prompt: The input prompt
             
         Yields:
-            str: Response tokens, one by one / 回應的 token, 逐字產生
+            str: Response tokens, one by one
             
         Why AsyncGenerator?
         → LLM 回應是「慢慢」產生的

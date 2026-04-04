@@ -835,6 +835,7 @@ rag_service = RAGService()
 **注意:**
 - 目前 provider 介面是 `generate_stream(prompt)`，不是 `chat_stream(messages)`
 - 因此 Day 3 應該先保留現有 SSE endpoint，將 RAG 建出的完整 prompt 字串交給 provider
+- 目前 `main.py` 使用 `Request` 直接讀取 JSON body，而不是 `ChatRequest` model
 
 **新增內容:**
 ```python
@@ -843,30 +844,24 @@ from services.rag import rag_service
 
 # 修改 /api/chat endpoint
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: Request):
     """
     Chat endpoint with RAG
     帶有 RAG 的聊天端點
     """
+    body = await request.json()
+    question = body.get("question", "")
+    provider_name = body.get("provider")
+
     # Step 1: Retrieve relevant context / 檢索相關上下文
-    rag_result = await rag_service.query(request.message)
+    rag_result = await rag_service.query(question)
     
-    # Step 2: Build enhanced prompt / 構建增強提示
-    enhanced_message = f"""Based on the following documentation:
-
-{rag_result['context']}
-
-User question: {request.message}
-
-Please answer the question based on the documentation above. If the documentation doesn't contain relevant information, say so.
-"""
-    
-    # Step 3: Get LLM response / 獲取 LLM 回應
-    provider = get_llm_provider(request.provider)
+    # Step 2: Get LLM response / 獲取 LLM 回應
+    provider = get_llm_provider(provider_name)
     
     async def event_generator():
         try:
-            async for chunk in provider.generate_stream(enhanced_message):
+            async for chunk in provider.generate_stream(rag_result["prompt"]):
                 yield f"data: {chunk}\n\n"
         except Exception as e:
             yield f"data: [Error] {str(e)}\n\n"
@@ -875,10 +870,7 @@ Please answer the question based on the documentation above. If the documentatio
 
     return StreamingResponse(
         event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "X-Sources": json.dumps(rag_result["sources"])
-        },
+        media_type="text/event-stream"
     )
 ```
 
@@ -923,6 +915,10 @@ asyncio.run(test())
 ## Day 4: Agent 核心架構
 
 ### 狀態: 🔄 進行中
+
+**實作注意:**
+- 目前本專案的 LLM provider 介面是 `generate_stream(prompt)`，不是原生 chat/messages API
+- 因此 Agent 需要先把 messages/history 展平成單一 prompt，再交給 provider
 
 ### Task 4.1: agent/tools/base.py
 
@@ -1034,6 +1030,9 @@ class Tool(ABC):
 
 **Code:**
 ````python
+import json
+
+
 # ─────────────────────────────────────────────────────────────
 # Agent System Prompts
 # Agent 系統提示詞
@@ -1042,72 +1041,55 @@ class Tool(ABC):
 
 def build_agent_prompt(tools: list[dict]) -> str:
     """
-    Build the agent system prompt with available tools
-    構建帶有可用工具的 Agent 系統提示詞
-    
-    Args:
-        tools: List of tool dicts from Tool.to_dict()
+    Build a stricter and more stable agent prompt
+    構建更穩定的 Agent 提示詞
     """
-    # Format tools for prompt / 格式化工具描述
-    tools_desc = ""
+    tool_lines = []
+
     for tool in tools:
-        tools_desc += f"""
-### {tool['name']}
-{tool['description']}
+        params = json.dumps(tool["parameters"], ensure_ascii=True)
+        tool_lines.append(
+            f"- {tool['name']}: {tool['description']} | parameters={params}"
+        )
 
-Parameters:
-```json
-{tool['parameters']}
-```
-"""
-    
-    return f"""You are ScriBot Agent, an AI assistant specialized in KDAI documentation.
+    tools_text = "\n".join(tool_lines)
 
-## Available Tools
-{tools_desc}
+    return f"""You are ScriBot Agent for KDAI documentation.
 
-## Response Format
+Available tools:
+{tools_text}
 
-You MUST respond in ONE of these two formats:
+You must respond in exactly ONE of these two formats.
 
-### Format 1: When you need to use a tool
-```
-Thought: [your reasoning about what to do]
-Action: [tool_name]
-Action Input: {{"param1": "value1", "param2": "value2"}}
-```
+Format A
+Thought: <brief reasoning>
+Action: <tool_name>
+Action Input: <valid JSON object>
 
-### Format 2: When you have the final answer
-```
-Thought: [your reasoning]
-Final Answer: [your complete response to the user]
-```
+Format B
+Thought: <brief reasoning>
+Final Answer: <answer in the user's language>
 
-## Rules
-1. Always start with "Thought:" to explain your reasoning
-2. Use tools to gather information before answering
-3. After receiving Observation, continue with another Thought
-4. When you have enough information, provide Final Answer
-5. Answer in the same language as the user's question
-6. Include source citations in your Final Answer
+Strict rules:
+1. Output must start with "Thought:".
+2. Do not output any text before "Thought:".
+3. Use only one tool at a time.
+4. Action must exactly match one available tool name.
+5. Action Input must be valid JSON on a single line.
+6. Do not wrap Action Input in markdown code fences.
+7. If you already have enough information, output Final Answer.
+8. If the documentation is insufficient, say so clearly.
+9. Keep Thought brief and practical.
+10. Include sources in Final Answer when available.
 
-## Example
+If you choose Format A, output exactly these three fields:
+Thought:
+Action:
+Action Input:
 
-User: What is KDAI?
-
-Thought: The user wants to know about KDAI. I should search the documentation.
-Action: search_docs
-Action Input: {{"query": "what is KDAI overview introduction"}}
-
-Observation: [1] Source: index.mdx
-    Title: Introduction
-    Content: KDAI (KamerDebat AI) is a real-time parliamentary debate transcription system...
-
-Thought: I found relevant information about KDAI. I can now provide a complete answer.
-Final Answer: KDAI (KamerDebat AI) is a real-time parliamentary debate transcription and question extraction system. It uses microservices architecture with Docker...
-
-Sources:
-- index.mdx: Introduction
+If you choose Format B, output exactly these two fields:
+Thought:
+Final Answer:
 """
 ````
 
@@ -1119,9 +1101,9 @@ Sources:
 
 **Code:**
 ```python
-import re
 import json
-from typing import Optional
+import re
+
 from services.agent.tools.base import Tool
 from services.agent.prompts import build_agent_prompt
 
@@ -1150,169 +1132,159 @@ class Agent:
     ReAct Agent for KDAI documentation
     用於 KDAI 文檔的 ReAct Agent
     """
-    
-    def __init__(
-        self,
-        llm_provider,
-        tools: list[Tool],
-        max_steps: int = 10,
-    ):
-        """
-        Args:
-            llm_provider: LLM provider instance (e.g., GroqProvider)
-            tools: List of available tools
-            max_steps: Maximum reasoning steps (prevent infinite loops)
-        """
+
+    def __init__(self, llm_provider, tools: list[Tool], max_steps: int = 10):
         self.llm = llm_provider
         self.tools = {tool.name: tool for tool in tools}
         self.max_steps = max_steps
-        
-        # Build system prompt with tools
+
         tool_dicts = [tool.to_dict() for tool in tools]
         self.system_prompt = build_agent_prompt(tool_dicts)
-    
+
     async def run(self, user_input: str) -> dict:
         """
         Run the agent loop
         執行 Agent 循環
-        
-        Args:
-            user_input: User's question or request
-            
-        Returns:
-            dict: {
-                "answer": Final answer string,
-                "steps": List of reasoning steps,
-                "sources": List of sources (if any)
-            }
         """
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_input},
         ]
-        
-        steps = []  # Record all steps for transparency
-        
+
+        steps = []
+
         for step_num in range(self.max_steps):
-            # Get LLM response / 獲取 LLM 回應
             response = await self._get_llm_response(messages)
-            
-            # Parse the response / 解析回應
             parsed = self._parse_response(response)
-            
-            # Record this step / 記錄這一步
-            steps.append({
+
+            step_data = {
                 "step": step_num + 1,
                 "thought": parsed.get("thought", ""),
                 "action": parsed.get("action"),
                 "action_input": parsed.get("action_input"),
                 "final_answer": parsed.get("final_answer"),
-            })
-            
-            # Check if we have final answer / 檢查是否有最終答案
+            }
+            steps.append(step_data)
+
             if parsed.get("final_answer"):
                 return {
                     "answer": parsed["final_answer"],
                     "steps": steps,
                     "sources": self._extract_sources(parsed["final_answer"]),
                 }
-            
-            # Execute tool if action specified / 如果有 action 就執行 tool
+
             if parsed.get("action"):
                 observation = await self._execute_tool(
                     parsed["action"],
-                    parsed.get("action_input", {})
+                    parsed.get("action_input", {}),
                 )
-                
-                # Add assistant response and observation to messages
+
                 messages.append({"role": "assistant", "content": response})
                 messages.append({"role": "user", "content": f"Observation: {observation}"})
-                
-                # Update step with observation
                 steps[-1]["observation"] = observation
             else:
-                # No action and no final answer - something went wrong
                 messages.append({"role": "assistant", "content": response})
-                messages.append({
-                    "role": "user",
-                    "content": "Please either use a tool (Action) or provide a Final Answer."
-                })
-        
-        # Max steps reached / 達到最大步數
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Please follow exactly Format A or Format B.",
+                    }
+                )
+
         return {
-            "answer": "I apologize, but I couldn't complete the task within the allowed steps. Please try rephrasing your question.",
+            "answer": "I could not complete the task within the allowed steps.",
             "steps": steps,
             "sources": [],
         }
-    
+
     async def _get_llm_response(self, messages: list[dict]) -> str:
-        """Get response from LLM (non-streaming)"""
-        prompt = "\n\n".join(f"{m['role']}: {m['content']}" for m in messages)
+        """
+        Get a non-streaming response using generate_stream(prompt)
+        用 generate_stream(prompt) 取得完整回應
+        """
+        prompt = self._build_conversation_prompt(messages)
+
         response = ""
         async for chunk in self.llm.generate_stream(prompt):
             response += chunk
-        return response
-    
+
+        return response.strip()
+
+    def _build_conversation_prompt(self, messages: list[dict]) -> str:
+        """
+        Flatten messages into a single prompt string
+        將訊息展平成單一 prompt
+        """
+        parts = []
+        for message in messages:
+            parts.append(f"{message['role'].upper()}:\n{message['content']}")
+
+        parts.append("ASSISTANT:")
+        return "\n\n".join(parts)
+
     def _parse_response(self, response: str) -> dict:
         """
         Parse agent response to extract Thought, Action, Final Answer
         解析 Agent 回應，提取 Thought、Action、Final Answer
         """
         result = {}
-        
-        # Extract Thought / 提取 Thought
-        thought_match = re.search(r'Thought:\s*(.+?)(?=Action:|Final Answer:|$)', response, re.DOTALL)
+
+        thought_match = re.search(
+            r"Thought:\s*(.+?)(?=Action:|Final Answer:|$)",
+            response,
+            re.DOTALL,
+        )
         if thought_match:
             result["thought"] = thought_match.group(1).strip()
-        
-        # Extract Final Answer / 提取 Final Answer
-        final_match = re.search(r'Final Answer:\s*(.+)', response, re.DOTALL)
+
+        final_match = re.search(r"Final Answer:\s*(.+)", response, re.DOTALL)
         if final_match:
             result["final_answer"] = final_match.group(1).strip()
-            return result  # If final answer, don't need action
-        
-        # Extract Action / 提取 Action
-        action_match = re.search(r'Action:\s*(\w+)', response)
+            return result
+
+        action_match = re.search(r"Action:\s*([a-zA-Z0-9_]+)", response)
         if action_match:
             result["action"] = action_match.group(1).strip()
-        
-        # Extract Action Input / 提取 Action Input
-        input_match = re.search(r'Action Input:\s*(\{.+?\})', response, re.DOTALL)
+
+        input_match = re.search(r"Action Input:\s*(\{.*\})", response, re.DOTALL)
         if input_match:
+            raw_input = input_match.group(1).strip()
             try:
-                result["action_input"] = json.loads(input_match.group(1))
+                result["action_input"] = json.loads(raw_input)
             except json.JSONDecodeError:
                 result["action_input"] = {}
-        
+
         return result
-    
+
     async def _execute_tool(self, tool_name: str, params: dict) -> str:
-        """Execute a tool and return observation"""
+        """
+        Execute a tool and return observation
+        執行工具並回傳 observation
+        """
         tool = self.tools.get(tool_name)
-        
         if not tool:
             return f"Error: Unknown tool '{tool_name}'. Available tools: {list(self.tools.keys())}"
-        
+
         try:
-            result = await tool.execute(**params)
-            return result
+            return await tool.execute(**params)
         except Exception as e:
             return f"Error executing {tool_name}: {str(e)}"
-    
+
     def _extract_sources(self, answer: str) -> list[dict]:
-        """Extract source citations from final answer"""
+        """
+        Extract simple source citations from the final answer
+        從最終答案提取簡單來源引用
+        """
         sources = []
-        
-        # Look for "Sources:" section
-        sources_match = re.search(r'Sources?:\s*\n((?:[-•]\s*.+\n?)+)', answer)
-        if sources_match:
-            source_lines = sources_match.group(1).strip().split('\n')
-            for line in source_lines:
-                # Extract filename from "- filename.mdx: description"
-                match = re.match(r'[-•]\s*(\S+\.mdx)', line)
-                if match:
-                    sources.append({"source": match.group(1)})
-        
+        sources_match = re.search(r"Sources?:\s*\n((?:[-•]\s*.+\n?)*)", answer)
+        if not sources_match:
+            return sources
+
+        for line in sources_match.group(1).strip().splitlines():
+            match = re.match(r"[-•]\s*(.+)", line.strip())
+            if match:
+                sources.append({"source": match.group(1)})
+
         return sources
 ```
 
@@ -2068,9 +2040,9 @@ curl -X POST http://localhost:8000/api/agent/run \
 - [x] End-to-end 測試 RAG chatbot
 
 ### Day 4
-- [ ] 創建 `backend/services/agent/tools/base.py`
-- [ ] 創建 `backend/services/agent/prompts.py`
-- [ ] 創建 `backend/services/agent/agent.py`
+- [x] 創建 `backend/services/agent/tools/base.py`
+- [x] 創建 `backend/services/agent/prompts.py`
+- [x] 創建 `backend/services/agent/agent.py`
 
 ### Day 5
 - [ ] 創建 `backend/services/agent/tools/search_docs.py`
