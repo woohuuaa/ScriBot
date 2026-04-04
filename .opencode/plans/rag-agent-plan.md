@@ -49,10 +49,10 @@ backend/services/
     │   ├── __init__.py      ✅ Day 5 完成
     │   ├── base.py          ✅ Day 4 完成
     │   ├── search_docs.py   ✅ Day 5 完成
-    │   ├── list_docs.py     📋 Day 6
-    │   ├── get_doc_info.py  📋 Day 6
-    │   ├── create_doc.py    📋 Day 7
-    │   └── delete_doc.py    📋 Day 7
+    │   ├── list_docs.py     ✅ Day 6 完成
+    │   ├── get_doc_info.py  ✅ Day 6 完成
+    │   ├── create_doc.py    ✅ Day 7 完成
+    │   └── delete_doc.py    ✅ Day 7 完成
     ├── agent.py             ✅ Day 4 完成
     └── prompts.py           ✅ Day 4 完成
 
@@ -1390,10 +1390,10 @@ __all__ = ["Tool", "SearchDocsTool"]
 
 ---
 
-<details open>
-<summary><b>Day 6: `list_docs` + `get_doc_info` Tools</b> (點擊收合)</summary>
+<details>
+<summary><b>Day 6: `list_docs` + `get_doc_info` Tools ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
 
 ### Task 6.1: list_docs.py
 
@@ -1593,10 +1593,10 @@ Returns: number of chunks, section titles, and content preview."""
 
 ---
 
-<details open>
-<summary><b>Day 7: `create_doc` + `delete_doc` Tools</b> (點擊收合)</summary>
+<details>
+<summary><b>Day 7: `create_doc` + `delete_doc` Tools ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
 
 ### Task 7.1: create_doc.py
 
@@ -2068,12 +2068,14 @@ curl -X POST http://localhost:8000/api/agent/run \
 - [x] 測試 `SearchDocsTool` 與最小 Agent 整合
 
 ### Day 6
-- [ ] 創建 `backend/services/agent/tools/list_docs.py`
-- [ ] 創建 `backend/services/agent/tools/get_doc_info.py`
+- [x] 創建 `backend/services/agent/tools/list_docs.py`
+- [x] 創建 `backend/services/agent/tools/get_doc_info.py`
+- [x] 測試 `ListDocsTool` 與 `GetDocInfoTool`
 
 ### Day 7
-- [ ] 創建 `backend/services/agent/tools/create_doc.py`
-- [ ] 創建 `backend/services/agent/tools/delete_doc.py`
+- [x] 創建 `backend/services/agent/tools/create_doc.py`
+- [x] 創建 `backend/services/agent/tools/delete_doc.py`
+- [x] 測試 `CreateDocTool`、新文件搜尋與 `DeleteDocTool`
 
 ### Day 8
 - [ ] 更新 `__init__.py` 文件
