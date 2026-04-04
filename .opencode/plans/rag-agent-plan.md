@@ -2051,14 +2051,19 @@ curl -X POST http://localhost:8000/api/agent/run \
 - [x] 測試 chunker 分塊 (33 MDX files → 639 chunks)
 
 ### Day 2
-- [ ] 創建 `backend/scripts/index_docs.py`
-- [ ] 執行索引 (33 個 MDX 文件)
-- [ ] 創建 `backend/services/rag.py`
-- [ ] 測試 RAG 搜尋
+- [x] 創建 `backend/scripts/index_docs.py`
+- [x] 執行索引 (33 個 MDX 文件)
+- [x] 創建 `backend/services/rag.py`
+- [x] 測試 RAG 搜尋
+- [x] 診斷 retrieval quality issue（確認 `Next Steps` / checklist chunks 污染搜尋結果）
+- [x] 更新 chunking 規則，過濾 `Next Steps` / checklist 類低資訊 chunk
+- [x] 確認 indexing 應將 `source/title/content` 一起納入 embedding 文字，避免浪費標題訊號
+- [x] 重新索引並重新驗證 retrieval quality
+- [x] 在 `rag.py` 加入輕量 reranking 與 query expansion（MVP quality fix）
 
 ### Day 3
-- [ ] 更新 `backend/main.py` (加入 RAG)
-- [ ] End-to-end 測試 RAG chatbot
+- [x] 更新 `backend/main.py` (加入 RAG)
+- [x] End-to-end 測試 RAG chatbot
 
 ### Day 4
 - [ ] 創建 `backend/services/agent/tools/base.py`

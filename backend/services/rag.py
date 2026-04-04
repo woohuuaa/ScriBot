@@ -1,3 +1,5 @@
+import re
+
 from config import settings
 from services.embedder import embedder
 from services.qdrant_client import qdrant_service
@@ -23,6 +25,19 @@ class RAGService:
     RAG service for KDAI documentation
     """
 
+    STOP_WORDS = {
+        "a", "an", "and", "are", "does", "do", "for", "how", "in", "is", "kdai",
+        "of", "the", "to", "what", "work", "works",
+    }
+
+    QUERY_EXPANSIONS = {
+        "install": ["installation", "docker", "setup", "environment", "quick-start", "prerequisites"],
+        "installation": ["install", "docker", "setup", "environment", "prerequisites"],
+        "prerequisites": ["required", "requirements", "ports", "software"],
+        "architecture": ["system", "services", "infrastructure", "components"],
+        "whisperlive": ["atts", "transcription", "csp", "websocket"],
+    }
+
     async def retrieve(
         self,
         query: str,
@@ -42,7 +57,51 @@ class RAGService:
             top_k = settings.top_k_results
 
         query_vector = await embedder.embed(query)
-        return qdrant_service.search(query_vector, top_k=top_k)
+        results = qdrant_service.search(query_vector, top_k=max(top_k, 50))
+        reranked = self._rerank_results(query, results)
+        return reranked[:top_k]
+
+    def _rerank_results(self, query: str, results: list[dict]) -> list[dict]:
+        """
+        Apply a lightweight lexical reranking on top of vector search.
+        在向量搜尋之上加一層輕量關鍵詞重排。
+        """
+        query_terms = self._extract_query_terms(query)
+        if not query_terms:
+            return results
+
+        def rerank_score(result: dict) -> float:
+            source_text = result["source"].lower()
+            title_text = result["title"].lower()
+            content_text = result["content"].lower()
+
+            bonus = 0.0
+            for term in query_terms:
+                if term in source_text:
+                    bonus += 0.08
+                if term in title_text:
+                    bonus += 0.12
+                if term in content_text:
+                    bonus += 0.04
+
+            return float(result["score"]) + bonus
+
+        return sorted(results, key=rerank_score, reverse=True)
+
+    def _extract_query_terms(self, query: str) -> list[str]:
+        """
+        Extract meaningful query terms for lexical reranking.
+        """
+        terms = re.findall(r"[a-zA-Z0-9_-]+", query.lower())
+        filtered_terms = [term for term in terms if len(term) > 2 and term not in self.STOP_WORDS]
+
+        expanded_terms = []
+        for term in filtered_terms:
+            expanded_terms.append(term)
+            expanded_terms.extend(self.QUERY_EXPANSIONS.get(term, []))
+
+        # Preserve order while removing duplicates.
+        return list(dict.fromkeys(expanded_terms))
 
     def build_context(self, results: list[dict]) -> str:
         """

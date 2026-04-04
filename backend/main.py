@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 import asyncio  # asyncio = async library
 from config import settings, LLMProvider
+from services.rag import rag_service
 from services.llm_providers.ollama import OllamaProvider
 from services.llm_providers.groq import GroqProvider
 from services.llm_providers.openai import OpenAIProvider
@@ -68,12 +69,15 @@ async def chat(request: Request):
     body = await request.json()
     question = body.get("question", "")
     provider_name = body.get("provider")
+
+    # Retrieve relevant documentation context before calling the LLM.
+    rag_result = await rag_service.query(question)
     
     provider = get_llm_provider(provider_name)
     
     async def event_generator():
         try:
-            async for token in provider.generate_stream(question):
+            async for token in provider.generate_stream(rag_result["prompt"]):
                 yield f"data: {token}\n\n"
         except Exception as e:
             yield f"data: [Error] {str(e)}\n\n"

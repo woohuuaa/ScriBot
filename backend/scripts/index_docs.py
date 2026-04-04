@@ -60,8 +60,11 @@ async def index_documents(recreate: bool = False):
     # Step 3: Generate embeddings
     print(f"\n[3/4] Generating embeddings for {len(chunks)} chunks...")
     
-    # Extract content for batch embedding
-    texts = [chunk.content for chunk in chunks]
+    # Build richer text for embedding so retrieval can use title/source clues.
+    texts = [
+        f"Source: {chunk.source}\nTitle: {chunk.title}\nContent: {chunk.content}"
+        for chunk in chunks
+    ]
     
     # Batch embed with progress bar and timing
     start_time = time.time()
