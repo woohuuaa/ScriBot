@@ -41,25 +41,25 @@ backend/services/
 ├── embedder.py              ✅ 已完成
 ├── qdrant_client.py         ✅ Day 1 完成
 ├── chunker.py               ✅ Day 1 完成
-├── rag.py                   📋 Day 2
+├── rag.py                   ✅ Day 2 完成
 │
-└── agent/                   🆕 Day 4-8
-    ├── __init__.py          📋 Day 8
+└── agent/                   🔄 Day 4-8
+    ├── __init__.py          📋 待建立
     ├── tools/
-    │   ├── __init__.py      📋 Day 8
-    │   ├── base.py          📋 Day 4
+    │   ├── __init__.py      📋 待建立
+    │   ├── base.py          ✅ Day 4 完成
     │   ├── search_docs.py   📋 Day 5
     │   ├── list_docs.py     📋 Day 6
     │   ├── get_doc_info.py  📋 Day 6
     │   ├── create_doc.py    📋 Day 7
     │   └── delete_doc.py    📋 Day 7
-    ├── agent.py             📋 Day 4
-    └── prompts.py           📋 Day 4
+    ├── agent.py             ✅ Day 4 完成
+    └── prompts.py           ✅ Day 4 完成
 
 backend/scripts/
-└── index_docs.py            📋 Day 2
+└── index_docs.py            ✅ Day 2 完成
 
-backend/main.py              📋 Day 3 + Day 8
+backend/main.py              🔄 Day 3 完成，Day 8 再更新
 ```
 
 ---
@@ -912,9 +912,10 @@ asyncio.run(test())
 
 ---
 
-## Day 4: Agent 核心架構
+<details>
+<summary><b>Day 4: Agent 核心架構 ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: 🔄 進行中
+### 狀態: ✅ 完成
 
 **實作注意:**
 - 目前本專案的 LLM provider 介面是 `generate_stream(prompt)`，不是原生 chat/messages API
@@ -1288,9 +1289,12 @@ class Agent:
         return sources
 ```
 
+</details>
+
 ---
 
-## Day 5: search_docs Tool
+<details open>
+<summary><b>Day 5: search_docs Tool</b> (點擊收合)</summary>
 
 ### 狀態: ⬜ 未開始
 
@@ -1382,9 +1386,12 @@ from services.agent.tools.search_docs import SearchDocsTool
 __all__ = ["Tool", "SearchDocsTool"]
 ```
 
+</details>
+
 ---
 
-## Day 6: `list_docs` + `get_doc_info` Tools
+<details open>
+<summary><b>Day 6: `list_docs` + `get_doc_info` Tools</b> (點擊收合)</summary>
 
 ### 狀態: ⬜ 未開始
 
@@ -1582,9 +1589,12 @@ Returns: number of chunks, section titles, and content preview."""
             return f"Error getting document info: {str(e)}"
 ```
 
+</details>
+
 ---
 
-## Day 7: `create_doc` + `delete_doc` Tools
+<details open>
+<summary><b>Day 7: `create_doc` + `delete_doc` Tools</b> (點擊收合)</summary>
 
 ### 狀態: ⬜ 未開始
 
@@ -1858,9 +1868,12 @@ This will remove the document file and all its indexed chunks from the vector da
             return f"Error deleting document: {str(e)}"
 ```
 
+</details>
+
 ---
 
-## Day 8: API Endpoint + 整合測試
+<details open>
+<summary><b>Day 8: API Endpoint + 整合測試</b> (點擊收合)</summary>
 
 ### 狀態: ⬜ 未開始
 
@@ -2007,6 +2020,10 @@ curl -X POST http://localhost:8000/api/agent/run \
   -H "Content-Type: application/json" \
   -d '{"message": "List all documents, then tell me about the architecture", "provider": "groq"}'
 ```
+
+---
+
+</details>
 
 ---
 

@@ -71,7 +71,8 @@ class Agent:
                 steps[-1]["observation"] = observation 
             else:   
                 messages.append({"role": "assistant", "content": response}) 
-                messages.append( 
+                messages.append(
+                    {
                         "role": "user",
                         "content": "Please follow exactly Format A or Format B.",
                     }
