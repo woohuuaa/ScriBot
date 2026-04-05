@@ -98,6 +98,7 @@ export interface AgentResponse {
   provider: string
 }
 
+// Public client-side API base URL for the ScriBot backend.
 const API_BASE = import.meta.env.PUBLIC_SCRIBOT_API_BASE ?? 'http://localhost:8000'
 
 export async function streamChat(
@@ -105,6 +106,7 @@ export async function streamChat(
   provider: ScribotProvider,
   onChunk: (chunk: string) => void,
 ): Promise<void> {
+  // Call the FastAPI SSE endpoint used by chat mode.
   const response = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -115,6 +117,7 @@ export async function streamChat(
     throw new Error('Streaming response body is missing.')
   }
 
+  // Read the response stream incrementally and split it into SSE events.
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -128,6 +131,7 @@ export async function streamChat(
     buffer = events.pop() ?? ''
 
     for (const event of events) {
+      // Each SSE event should contain a `data:` line.
       const line = event
         .split('\n')
         .find((item) => item.startsWith('data:'))
@@ -138,6 +142,7 @@ export async function streamChat(
       if (data === '[DONE]') return
       if (data.startsWith('[Error]')) throw new Error(data)
 
+      // Append the newest chunk into the current assistant message.
       onChunk(data)
     }
   }
@@ -147,6 +152,7 @@ export async function runAgent(
   message: string,
   provider: ScribotProvider,
 ): Promise<AgentResponse> {
+  // Call the non-streaming agent endpoint and return structured JSON.
   const response = await fetch(`${API_BASE}/api/agent/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -192,6 +198,7 @@ type ChatMessage = {
 }
 
 export default function ScriBotWidget() {
+  // UI state for the floating widget.
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [provider, setProvider] = useState<ScribotProvider>('ollama')
@@ -202,10 +209,12 @@ export default function ScriBotWidget() {
   const listRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
+    // Keep the newest assistant output in view.
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, loading])
 
   async function handleSubmit() {
+    // Ignore empty submits and avoid overlapping requests.
     const question = input.trim()
     if (!question || loading) return
 
@@ -223,6 +232,7 @@ export default function ScriBotWidget() {
 
     try {
       if (mode === 'chat') {
+        // Chat mode streams a single assistant message progressively.
         const assistantId = crypto.randomUUID()
         setMessages((prev) => [
           ...prev,
@@ -239,6 +249,7 @@ export default function ScriBotWidget() {
           )
         })
       } else {
+        // Agent mode returns one structured JSON payload.
         const result = await runAgent(question, provider)
         setMessages((prev) => [
           ...prev,
@@ -261,6 +272,7 @@ export default function ScriBotWidget() {
 
   return (
     <div className="scribot-widget">
+      {/* Floating launcher that opens and closes the panel. */}
       <button className="scribot-launcher" onClick={() => setOpen((prev) => !prev)}>
         ScriBot
       </button>
@@ -272,6 +284,7 @@ export default function ScriBotWidget() {
             <button onClick={() => setOpen(false)}>Close</button>
           </div>
 
+          {/* Provider + mode controls. */}
           <div className="scribot-controls">
             <select value={provider} onChange={(e) => setProvider(e.target.value as ScribotProvider)}>
               <option value="ollama">Ollama</option>
@@ -300,6 +313,7 @@ export default function ScriBotWidget() {
             {error ? <div className="scribot-error">{error}</div> : null}
           </div>
 
+          {/* Message composer. */}
           <div className="scribot-input-row">
             <textarea
               value={input}
@@ -326,6 +340,7 @@ export default function ScriBotWidget() {
 import ScriBotWidget from './ScriBotWidget'
 ---
 
+<!-- Load the React widget on the client so it can use browser APIs and fetch backend data. -->
 <ScriBotWidget client:load />
 ```
 
@@ -345,6 +360,7 @@ If no global layout override exists yet, create one before building the widget U
 
 ```css
 .scribot-widget {
+  /* Keep the launcher visible from any docs page. */
   position: fixed;
   right: 1rem;
   bottom: 1rem;
@@ -352,6 +368,7 @@ If no global layout override exists yet, create one before building the widget U
 }
 
 .scribot-launcher {
+  /* Rounded floating action button style. */
   border: 0;
   border-radius: 999px;
   padding: 0.9rem 1.2rem;
@@ -360,6 +377,7 @@ If no global layout override exists yet, create one before building the widget U
 }
 
 .scribot-panel {
+  /* Responsive floating panel attached to the launcher. */
   width: min(420px, calc(100vw - 2rem));
   height: min(70vh, 720px);
   display: grid;
@@ -379,6 +397,7 @@ If no global layout override exists yet, create one before building the widget U
 }
 
 .scribot-messages {
+  /* Scrollable message history area. */
   overflow: auto;
   padding: 0.75rem;
   display: grid;
