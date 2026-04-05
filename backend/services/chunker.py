@@ -32,6 +32,13 @@ class Chunker:
     """
     MDX document chunker for RAG pipeline
     """
+
+    SKIP_TITLES = {
+        "Next Steps",
+        "Related Requirements",
+        "Verification Checklist",
+    }
+    # Skip low-information navigation/checklist sections.
     
     def __init__(self, min_chunk_size: int = 100, max_chunk_size: int = 2000):
         """
@@ -66,6 +73,10 @@ class Chunker:
         for i, (title, text) in enumerate(sections):
             # Skip empty sections
             if len(text.strip()) < self.min_chunk_size:
+                continue
+
+            # Skip navigation-heavy sections that pollute retrieval quality.
+            if title in self.SKIP_TITLES:
                 continue
             
             # Truncate if too long

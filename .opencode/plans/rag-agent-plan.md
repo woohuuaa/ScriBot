@@ -41,25 +41,25 @@ backend/services/
 ├── embedder.py              ✅ 已完成
 ├── qdrant_client.py         ✅ Day 1 完成
 ├── chunker.py               ✅ Day 1 完成
-├── rag.py                   📋 Day 2
+├── rag.py                   ✅ Day 2 完成
 │
-└── agent/                   🆕 Day 4-8
-    ├── __init__.py          📋 Day 8
+└── agent/                   ✅ Day 4-8 完成
+    ├── __init__.py          ✅ Day 5 完成
     ├── tools/
-    │   ├── __init__.py      📋 Day 8
-    │   ├── base.py          📋 Day 4
-    │   ├── search_docs.py   📋 Day 5
-    │   ├── list_docs.py     📋 Day 6
-    │   ├── get_doc_info.py  📋 Day 6
-    │   ├── create_doc.py    📋 Day 7
-    │   └── delete_doc.py    📋 Day 7
-    ├── agent.py             📋 Day 4
-    └── prompts.py           📋 Day 4
+    │   ├── __init__.py      ✅ Day 5 完成
+    │   ├── base.py          ✅ Day 4 完成
+    │   ├── search_docs.py   ✅ Day 5 完成
+    │   ├── list_docs.py     ✅ Day 6 完成
+    │   ├── get_doc_info.py  ✅ Day 6 完成
+    │   ├── create_doc.py    ✅ Day 7 完成
+    │   └── delete_doc.py    ✅ Day 7 完成
+    ├── agent.py             ✅ Day 4 完成
+    └── prompts.py           ✅ Day 4 完成
 
 backend/scripts/
-└── index_docs.py            📋 Day 2
+└── index_docs.py            ✅ Day 2 完成
 
-backend/main.py              📋 Day 3 + Day 8
+backend/main.py              ✅ Day 3 + Day 8 完成
 ```
 
 ---
@@ -293,7 +293,7 @@ qdrant_service = QdrantService()
 - 按標題 (## / ###) 分割成 chunks
 
 **Code:**
-```python
+````python
 import re
 from pathlib import Path
 from dataclasses import dataclass
@@ -476,7 +476,7 @@ class Chunker:
 
 # Singleton instance
 chunker = Chunker()
-```
+````
 
 **關鍵概念解釋:**
 
@@ -522,9 +522,8 @@ print(qdrant_service.get_collection_info())
 
 ---
 
-## Day 2: index_docs.py + rag.py
-
-### 狀態: ⬜ 未開始
+<details>
+<summary><b>Day 2: index_docs.py + rag.py ✅ 完成</b> (點擊展開)</summary>
 
 ### Task 2.1: index_docs.py
 
@@ -667,6 +666,8 @@ docker compose exec backend python -m scripts.index_docs --recreate
 **功能:**
 - `retrieve()` - 用問題搜尋相關文檔
 - `build_context()` - 把搜尋結果組成 LLM context
+- `build_sources()` - 整理引用來源
+- `query()` - 回傳 retrieval 結果、context 與 sources
 
 **Code:**
 ```python
@@ -820,15 +821,21 @@ rag_service = RAGService()
        Content: Run docker compose up -d to start all services...
    ```
 
+</details>
+
 ---
 
-## Day 3: main.py 更新 + RAG 測試
-
-### 狀態: ⬜ 未開始
+<details>
+<summary><b>Day 3: main.py 更新 + RAG 測試 ✅ 完成</b> (點擊展開)</summary>
 
 ### Task 3.1: 更新 main.py
 
 **修改:** `backend/main.py`
+
+**注意:**
+- 目前 provider 介面是 `generate_stream(prompt)`，不是 `chat_stream(messages)`
+- 因此 Day 3 應該先保留現有 SSE endpoint，將 RAG 建出的完整 prompt 字串交給 provider
+- 目前 `main.py` 使用 `Request` 直接讀取 JSON body，而不是 `ChatRequest` model
 
 **新增內容:**
 ```python
@@ -837,39 +844,34 @@ from services.rag import rag_service
 
 # 修改 /api/chat endpoint
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: Request):
     """
     Chat endpoint with RAG
     帶有 RAG 的聊天端點
     """
+    body = await request.json()
+    question = body.get("question", "")
+    provider_name = body.get("provider")
+
     # Step 1: Retrieve relevant context / 檢索相關上下文
-    rag_result = await rag_service.query(request.message)
+    rag_result = await rag_service.query(question)
     
-    # Step 2: Build enhanced prompt / 構建增強提示
-    enhanced_message = f"""Based on the following documentation:
+    # Step 2: Get LLM response / 獲取 LLM 回應
+    provider = get_llm_provider(provider_name)
+    
+    async def event_generator():
+        try:
+            async for chunk in provider.generate_stream(rag_result["prompt"]):
+                yield f"data: {chunk}\n\n"
+        except Exception as e:
+            yield f"data: [Error] {str(e)}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
 
-{rag_result['context']}
-
-User question: {request.message}
-
-Please answer the question based on the documentation above. If the documentation doesn't contain relevant information, say so.
-"""
-    
-    # Step 3: Get LLM response / 獲取 LLM 回應
-    provider = get_llm_provider(request.provider)
-    
-    response_text = ""
-    async for chunk in provider.chat_stream([
-        {"role": "user", "content": enhanced_message}
-    ]):
-        response_text += chunk
-    
-    # Step 4: Return with sources / 返回包含來源
-    return {
-        "response": response_text,
-        "sources": rag_result['sources'],
-        "provider": request.provider or settings.default_provider.value,
-    }
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )
 ```
 
 ---
@@ -906,11 +908,18 @@ async def test():
 asyncio.run(test())
 ```
 
+</details>
+
 ---
 
-## Day 4: Agent 核心架構
+<details>
+<summary><b>Day 4: Agent 核心架構 ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
+
+**實作注意:**
+- 目前本專案的 LLM provider 介面是 `generate_stream(prompt)`，不是原生 chat/messages API
+- 因此 Agent 需要先把 messages/history 展平成單一 prompt，再交給 provider
 
 ### Task 4.1: agent/tools/base.py
 
@@ -1021,7 +1030,10 @@ class Tool(ABC):
 **位置:** `backend/services/agent/prompts.py`
 
 **Code:**
-```python
+````python
+import json
+
+
 # ─────────────────────────────────────────────────────────────
 # Agent System Prompts
 # Agent 系統提示詞
@@ -1030,74 +1042,57 @@ class Tool(ABC):
 
 def build_agent_prompt(tools: list[dict]) -> str:
     """
-    Build the agent system prompt with available tools
-    構建帶有可用工具的 Agent 系統提示詞
-    
-    Args:
-        tools: List of tool dicts from Tool.to_dict()
+    Build a stricter and more stable agent prompt
+    構建更穩定的 Agent 提示詞
     """
-    # Format tools for prompt / 格式化工具描述
-    tools_desc = ""
+    tool_lines = []
+
     for tool in tools:
-        tools_desc += f"""
-### {tool['name']}
-{tool['description']}
+        params = json.dumps(tool["parameters"], ensure_ascii=True)
+        tool_lines.append(
+            f"- {tool['name']}: {tool['description']} | parameters={params}"
+        )
 
-Parameters:
-```json
-{tool['parameters']}
-```
+    tools_text = "\n".join(tool_lines)
+
+    return f"""You are ScriBot Agent for KDAI documentation.
+
+Available tools:
+{tools_text}
+
+You must respond in exactly ONE of these two formats.
+
+Format A
+Thought: <brief reasoning>
+Action: <tool_name>
+Action Input: <valid JSON object>
+
+Format B
+Thought: <brief reasoning>
+Final Answer: <answer in the user's language>
+
+Strict rules:
+1. Output must start with "Thought:".
+2. Do not output any text before "Thought:".
+3. Use only one tool at a time.
+4. Action must exactly match one available tool name.
+5. Action Input must be valid JSON on a single line.
+6. Do not wrap Action Input in markdown code fences.
+7. If you already have enough information, output Final Answer.
+8. If the documentation is insufficient, say so clearly.
+9. Keep Thought brief and practical.
+10. Include sources in Final Answer when available.
+
+If you choose Format A, output exactly these three fields:
+Thought:
+Action:
+Action Input:
+
+If you choose Format B, output exactly these two fields:
+Thought:
+Final Answer:
 """
-    
-    return f"""You are ScriBot Agent, an AI assistant specialized in KDAI documentation.
-
-## Available Tools
-{tools_desc}
-
-## Response Format
-
-You MUST respond in ONE of these two formats:
-
-### Format 1: When you need to use a tool
-```
-Thought: [your reasoning about what to do]
-Action: [tool_name]
-Action Input: {{"param1": "value1", "param2": "value2"}}
-```
-
-### Format 2: When you have the final answer
-```
-Thought: [your reasoning]
-Final Answer: [your complete response to the user]
-```
-
-## Rules
-1. Always start with "Thought:" to explain your reasoning
-2. Use tools to gather information before answering
-3. After receiving Observation, continue with another Thought
-4. When you have enough information, provide Final Answer
-5. Answer in the same language as the user's question
-6. Include source citations in your Final Answer
-
-## Example
-
-User: What is KDAI?
-
-Thought: The user wants to know about KDAI. I should search the documentation.
-Action: search_docs
-Action Input: {{"query": "what is KDAI overview introduction"}}
-
-Observation: [1] Source: index.mdx
-    Title: Introduction
-    Content: KDAI (KamerDebat AI) is a real-time parliamentary debate transcription system...
-
-Thought: I found relevant information about KDAI. I can now provide a complete answer.
-Final Answer: KDAI (KamerDebat AI) is a real-time parliamentary debate transcription and question extraction system. It uses microservices architecture with Docker...
-
-Sources:
-- index.mdx: Introduction
-"""
-```
+````
 
 ---
 
@@ -1107,9 +1102,9 @@ Sources:
 
 **Code:**
 ```python
-import re
 import json
-from typing import Optional
+import re
+
 from services.agent.tools.base import Tool
 from services.agent.prompts import build_agent_prompt
 
@@ -1138,176 +1133,170 @@ class Agent:
     ReAct Agent for KDAI documentation
     用於 KDAI 文檔的 ReAct Agent
     """
-    
-    def __init__(
-        self,
-        llm_provider,
-        tools: list[Tool],
-        max_steps: int = 10,
-    ):
-        """
-        Args:
-            llm_provider: LLM provider instance (e.g., GroqProvider)
-            tools: List of available tools
-            max_steps: Maximum reasoning steps (prevent infinite loops)
-        """
+
+    def __init__(self, llm_provider, tools: list[Tool], max_steps: int = 10):
         self.llm = llm_provider
         self.tools = {tool.name: tool for tool in tools}
         self.max_steps = max_steps
-        
-        # Build system prompt with tools
+
         tool_dicts = [tool.to_dict() for tool in tools]
         self.system_prompt = build_agent_prompt(tool_dicts)
-    
+
     async def run(self, user_input: str) -> dict:
         """
         Run the agent loop
         執行 Agent 循環
-        
-        Args:
-            user_input: User's question or request
-            
-        Returns:
-            dict: {
-                "answer": Final answer string,
-                "steps": List of reasoning steps,
-                "sources": List of sources (if any)
-            }
         """
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_input},
         ]
-        
-        steps = []  # Record all steps for transparency
-        
+
+        steps = []
+
         for step_num in range(self.max_steps):
-            # Get LLM response / 獲取 LLM 回應
             response = await self._get_llm_response(messages)
-            
-            # Parse the response / 解析回應
             parsed = self._parse_response(response)
-            
-            # Record this step / 記錄這一步
-            steps.append({
+
+            step_data = {
                 "step": step_num + 1,
                 "thought": parsed.get("thought", ""),
                 "action": parsed.get("action"),
                 "action_input": parsed.get("action_input"),
                 "final_answer": parsed.get("final_answer"),
-            })
-            
-            # Check if we have final answer / 檢查是否有最終答案
+            }
+            steps.append(step_data)
+
             if parsed.get("final_answer"):
                 return {
                     "answer": parsed["final_answer"],
                     "steps": steps,
                     "sources": self._extract_sources(parsed["final_answer"]),
                 }
-            
-            # Execute tool if action specified / 如果有 action 就執行 tool
+
             if parsed.get("action"):
                 observation = await self._execute_tool(
                     parsed["action"],
-                    parsed.get("action_input", {})
+                    parsed.get("action_input", {}),
                 )
-                
-                # Add assistant response and observation to messages
+
                 messages.append({"role": "assistant", "content": response})
                 messages.append({"role": "user", "content": f"Observation: {observation}"})
-                
-                # Update step with observation
                 steps[-1]["observation"] = observation
             else:
-                # No action and no final answer - something went wrong
                 messages.append({"role": "assistant", "content": response})
-                messages.append({
-                    "role": "user",
-                    "content": "Please either use a tool (Action) or provide a Final Answer."
-                })
-        
-        # Max steps reached / 達到最大步數
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "Please follow exactly Format A or Format B.",
+                    }
+                )
+
         return {
-            "answer": "I apologize, but I couldn't complete the task within the allowed steps. Please try rephrasing your question.",
+            "answer": "I could not complete the task within the allowed steps.",
             "steps": steps,
             "sources": [],
         }
-    
+
     async def _get_llm_response(self, messages: list[dict]) -> str:
-        """Get response from LLM (non-streaming)"""
+        """
+        Get a non-streaming response using generate_stream(prompt)
+        用 generate_stream(prompt) 取得完整回應
+        """
+        prompt = self._build_conversation_prompt(messages)
+
         response = ""
-        async for chunk in self.llm.chat_stream(messages):
+        async for chunk in self.llm.generate_stream(prompt):
             response += chunk
-        return response
-    
+
+        return response.strip()
+
+    def _build_conversation_prompt(self, messages: list[dict]) -> str:
+        """
+        Flatten messages into a single prompt string
+        將訊息展平成單一 prompt
+        """
+        parts = []
+        for message in messages:
+            parts.append(f"{message['role'].upper()}:\n{message['content']}")
+
+        parts.append("ASSISTANT:")
+        return "\n\n".join(parts)
+
     def _parse_response(self, response: str) -> dict:
         """
         Parse agent response to extract Thought, Action, Final Answer
         解析 Agent 回應，提取 Thought、Action、Final Answer
         """
         result = {}
-        
-        # Extract Thought / 提取 Thought
-        thought_match = re.search(r'Thought:\s*(.+?)(?=Action:|Final Answer:|$)', response, re.DOTALL)
+
+        thought_match = re.search(
+            r"Thought:\s*(.+?)(?=Action:|Final Answer:|$)",
+            response,
+            re.DOTALL,
+        )
         if thought_match:
             result["thought"] = thought_match.group(1).strip()
-        
-        # Extract Final Answer / 提取 Final Answer
-        final_match = re.search(r'Final Answer:\s*(.+)', response, re.DOTALL)
+
+        final_match = re.search(r"Final Answer:\s*(.+)", response, re.DOTALL)
         if final_match:
             result["final_answer"] = final_match.group(1).strip()
-            return result  # If final answer, don't need action
-        
-        # Extract Action / 提取 Action
-        action_match = re.search(r'Action:\s*(\w+)', response)
+            return result
+
+        action_match = re.search(r"Action:\s*([a-zA-Z0-9_]+)", response)
         if action_match:
             result["action"] = action_match.group(1).strip()
-        
-        # Extract Action Input / 提取 Action Input
-        input_match = re.search(r'Action Input:\s*(\{.+?\})', response, re.DOTALL)
+
+        input_match = re.search(r"Action Input:\s*(\{.*\})", response, re.DOTALL)
         if input_match:
+            raw_input = input_match.group(1).strip()
             try:
-                result["action_input"] = json.loads(input_match.group(1))
+                result["action_input"] = json.loads(raw_input)
             except json.JSONDecodeError:
                 result["action_input"] = {}
-        
+
         return result
-    
+
     async def _execute_tool(self, tool_name: str, params: dict) -> str:
-        """Execute a tool and return observation"""
+        """
+        Execute a tool and return observation
+        執行工具並回傳 observation
+        """
         tool = self.tools.get(tool_name)
-        
         if not tool:
             return f"Error: Unknown tool '{tool_name}'. Available tools: {list(self.tools.keys())}"
-        
+
         try:
-            result = await tool.execute(**params)
-            return result
+            return await tool.execute(**params)
         except Exception as e:
             return f"Error executing {tool_name}: {str(e)}"
-    
+
     def _extract_sources(self, answer: str) -> list[dict]:
-        """Extract source citations from final answer"""
+        """
+        Extract simple source citations from the final answer
+        從最終答案提取簡單來源引用
+        """
         sources = []
-        
-        # Look for "Sources:" section
-        sources_match = re.search(r'Sources?:\s*\n((?:[-•]\s*.+\n?)+)', answer)
-        if sources_match:
-            source_lines = sources_match.group(1).strip().split('\n')
-            for line in source_lines:
-                # Extract filename from "- filename.mdx: description"
-                match = re.match(r'[-•]\s*(\S+\.mdx)', line)
-                if match:
-                    sources.append({"source": match.group(1)})
-        
+        sources_match = re.search(r"Sources?:\s*\n((?:[-•]\s*.+\n?)*)", answer)
+        if not sources_match:
+            return sources
+
+        for line in sources_match.group(1).strip().splitlines():
+            match = re.match(r"[-•]\s*(.+)", line.strip())
+            if match:
+                sources.append({"source": match.group(1)})
+
         return sources
 ```
 
+</details>
+
 ---
 
-## Day 5: search_docs Tool
+<details>
+<summary><b>Day 5: search_docs Tool ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
 
 ### Task 5.1: agent/tools/search_docs.py
 
@@ -1397,11 +1386,14 @@ from services.agent.tools.search_docs import SearchDocsTool
 __all__ = ["Tool", "SearchDocsTool"]
 ```
 
+</details>
+
 ---
 
-## Day 6: `list_docs` + `get_doc_info` Tools
+<details>
+<summary><b>Day 6: `list_docs` + `get_doc_info` Tools ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
 
 ### Task 6.1: list_docs.py
 
@@ -1451,6 +1443,8 @@ or when the user asks about the documentation structure."""
         """
         # Get all points and extract unique sources
         # 獲取所有點並提取唯一的來源
+        # Note: MVP can use a single scroll call because the dataset is small.
+        # If docs grow larger later, switch to paginated scroll.
         try:
             # Scroll through all points to get sources
             # 滾動所有點以獲取來源
@@ -1539,6 +1533,8 @@ Returns: number of chunks, section titles, and content preview."""
         取得特定文檔的資訊
         """
         try:
+            # Note: MVP uses a fixed scroll limit because current docs are small.
+            # If a document can exceed this number of chunks later, add pagination.
             # Filter by source filename
             # 按來源文件名過濾
             results, _ = qdrant_service.client.scroll(
@@ -1593,11 +1589,14 @@ Returns: number of chunks, section titles, and content preview."""
             return f"Error getting document info: {str(e)}"
 ```
 
+</details>
+
 ---
 
-## Day 7: `create_doc` + `delete_doc` Tools
+<details>
+<summary><b>Day 7: `create_doc` + `delete_doc` Tools ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
 
 ### Task 7.1: create_doc.py
 
@@ -1608,6 +1607,7 @@ Returns: number of chunks, section titles, and content preview."""
 **Code:**
 ```python
 from pathlib import Path
+import uuid
 from services.agent.tools.base import Tool
 from services.chunker import chunker
 from services.embedder import embedder
@@ -1714,7 +1714,9 @@ description: {title}
             
             # Step 4: Upsert to Qdrant
             # 步驟 4：存入 Qdrant
-            ids = [chunk.id for chunk in chunks]
+            # Qdrant point IDs must be uint or UUID, not arbitrary strings.
+            # Qdrant point ID 必須是無符號整數或 UUID，不能直接用字串。
+            ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk.id)) for chunk in chunks]
             payloads = [
                 {
                     "source": chunk.source,
@@ -1797,6 +1799,8 @@ This will remove the document file and all its indexed chunks from the vector da
         刪除文檔並從索引中移除
         """
         try:
+            # Note: MVP uses a fixed scroll limit because current docs are small.
+            # If a document can exceed this number of chunks later, add pagination.
             # Validate filename
             # 驗證文件名
             if not filename.endswith(".mdx"):
@@ -1864,11 +1868,14 @@ This will remove the document file and all its indexed chunks from the vector da
             return f"Error deleting document: {str(e)}"
 ```
 
+</details>
+
 ---
 
-## Day 8: API Endpoint + 整合測試
+<details>
+<summary><b>Day 8: API Endpoint + 整合測試 ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
 
 ### Task 8.1: 更新 agent/__init__.py
 
@@ -2016,6 +2023,10 @@ curl -X POST http://localhost:8000/api/agent/run \
 
 ---
 
+</details>
+
+---
+
 ## 完成後的 Bullet Point
 
 > • **Built RAG-powered AI agent** using ReAct architecture with 5 modular tools (search, list, info, create, delete), Qdrant vector database for semantic search, and multiple LLM providers (Ollama/Groq), enabling multi-step reasoning and knowledge base management over 30+ technical documents with source citations
@@ -2031,36 +2042,46 @@ curl -X POST http://localhost:8000/api/agent/run \
 - [x] 測試 chunker 分塊 (33 MDX files → 639 chunks)
 
 ### Day 2
-- [ ] 創建 `backend/scripts/index_docs.py`
-- [ ] 執行索引 (33 個 MDX 文件)
-- [ ] 創建 `backend/services/rag.py`
-- [ ] 測試 RAG 搜尋
+- [x] 創建 `backend/scripts/index_docs.py`
+- [x] 執行索引 (33 個 MDX 文件)
+- [x] 創建 `backend/services/rag.py`
+- [x] 測試 RAG 搜尋
+- [x] 診斷 retrieval quality issue（確認 `Next Steps` / checklist chunks 污染搜尋結果）
+- [x] 更新 chunking 規則，過濾 `Next Steps` / checklist 類低資訊 chunk
+- [x] 確認 indexing 應將 `source/title/content` 一起納入 embedding 文字，避免浪費標題訊號
+- [x] 重新索引並重新驗證 retrieval quality
+- [x] 在 `rag.py` 加入輕量 reranking 與 query expansion（MVP quality fix）
 
 ### Day 3
-- [ ] 更新 `backend/main.py` (加入 RAG)
-- [ ] End-to-end 測試 RAG chatbot
+- [x] 更新 `backend/main.py` (加入 RAG)
+- [x] End-to-end 測試 RAG chatbot
 
 ### Day 4
-- [ ] 創建 `backend/services/agent/tools/base.py`
-- [ ] 創建 `backend/services/agent/prompts.py`
-- [ ] 創建 `backend/services/agent/agent.py`
+- [x] 創建 `backend/services/agent/tools/base.py`
+- [x] 創建 `backend/services/agent/prompts.py`
+- [x] 創建 `backend/services/agent/agent.py`
 
 ### Day 5
-- [ ] 創建 `backend/services/agent/tools/search_docs.py`
+- [x] 創建 `backend/services/agent/tools/search_docs.py`
+- [x] 更新 `backend/services/agent/__init__.py`
+- [x] 更新 `backend/services/agent/tools/__init__.py`
+- [x] 測試 `SearchDocsTool` 與最小 Agent 整合
 
 ### Day 6
-- [ ] 創建 `backend/services/agent/tools/list_docs.py`
-- [ ] 創建 `backend/services/agent/tools/get_doc_info.py`
+- [x] 創建 `backend/services/agent/tools/list_docs.py`
+- [x] 創建 `backend/services/agent/tools/get_doc_info.py`
+- [x] 測試 `ListDocsTool` 與 `GetDocInfoTool`
 
 ### Day 7
-- [ ] 創建 `backend/services/agent/tools/create_doc.py`
-- [ ] 創建 `backend/services/agent/tools/delete_doc.py`
+- [x] 創建 `backend/services/agent/tools/create_doc.py`
+- [x] 創建 `backend/services/agent/tools/delete_doc.py`
+- [x] 測試 `CreateDocTool`、新文件搜尋與 `DeleteDocTool`
 
 ### Day 8
-- [ ] 更新 `__init__.py` 文件
-- [ ] 更新 `backend/main.py` (加入 `/api/agent/run`)
-- [ ] End-to-end 測試所有 5 個 Tools
-- [ ] 調整 prompt (如果需要)
+- [x] 更新 `__init__.py` 文件
+- [x] 更新 `backend/main.py` (加入 `/api/agent/run`)
+- [x] End-to-end 測試所有 5 個 Tools
+- [x] 調整 prompt (如果需要)
 
 ---
 

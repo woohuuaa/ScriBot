@@ -25,12 +25,12 @@ class BaseLLMProvider(ABC):
             prompt: The input prompt
             
         Yields:
-            str: Response tokens, one by one / 回應的 token, 逐字產生
+            str: Response tokens, one by one
             
         Why AsyncGenerator?
-        → LLM 回應是「慢慢」產生的
-        → 一次吐一個 token，而不是等全部完成
-        → 實現 ChatGPT 那種「逐字顯示」的效果
+        - LLM responses are produced gradually.
+        - Tokens can be yielded incrementally instead of waiting for the full response.
+        - This enables ChatGPT-style streaming output.
         """
         pass
     
@@ -40,23 +40,23 @@ class BaseLLMProvider(ABC):
         Get provider name
         
         Returns:
-            str: Provider name (e.g., "ollama", "groq") / Provider 名稱
+            str: Provider name (e.g., "ollama", "groq")
             
-        用處：
-        → Logging / 記錄用哪個 Provider
-        → Monitoring / 監控時區分 Provider
-        → Error messages / 錯誤訊息
+        Useful for:
+        - Logging
+        - Monitoring
+        - Error messages
         """
         pass
     
     def get_cost_per_token(self) -> float:
         """
-        Get cost per token / 取得每個 token 的成本
+        Get cost per token.
         
         Returns:
-            float: Cost per 1K tokens / 每 1000 個 token 的成本
+            float: Cost per 1K tokens
             
-        預設回傳 0（用於 Ollama 本地）
-        子類別可以 override / 覆寫
+        Defaults to 0.0 for local Ollama.
+        Subclasses can override this.
         """
         return 0.0  # Default: free (Ollama local)

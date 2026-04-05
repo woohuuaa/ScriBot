@@ -15,11 +15,11 @@ from typing import Optional
 # ─────────────────────────────────────────────────────────────
 # 
 # Qdrant Concepts:
-#   - Collection: like a table (類似資料表)
-#   - Point: { id, vector, payload } (一筆資料)
+#   - Collection: like a table
+#   - Point: { id, vector, payload }
 #   - Vector: 768-dim embedding from nomic-embed-text
 #   - Payload: metadata like { source, title, content }
-#   - Distance: Cosine similarity (方向相似度，不看長度)
+#   - Distance: Cosine similarity
 # ─────────────────────────────────────────────────────────────
 
 
@@ -137,12 +137,15 @@ class QdrantService:
             )
         
         # Execute search
-        results = self.client.search(
+        response = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             limit=top_k,
             query_filter=query_filter,
+            with_payload=True,
+            with_vectors=False,
         )
+        results = response.points
         
         # Format results
         return [

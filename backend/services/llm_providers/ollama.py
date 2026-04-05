@@ -44,7 +44,7 @@ class OllamaProvider(BaseLLMProvider):
         # ─────────────────────────────────────────────────────────
         # Make async HTTP request
         # ─────────────────────────────────────────────────────────
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
             # httpx.AsyncClient = async HTTP client
             # timeout=120.0 = wait up to 120 seconds
             # async with = auto cleanup
@@ -55,11 +55,11 @@ class OllamaProvider(BaseLLMProvider):
                 json=payload # Request body as JSON
             ) as response:
                 # client.stream() = for streaming responses
-                # 比 client.post() 更適合串流回應
+                # More suitable for streaming responses than client.post().
                 
                 # Check if request succeeded
                 response.raise_for_status()
-                # 如果 status code 不是 200-299，會拋出例外
+                # Raise an exception if the status code is not 200-299.
                 
                 # ─────────────────────────────────────────────────────────
                 # Parse streaming JSON lines
