@@ -35,13 +35,13 @@ class Embedder:
         """
         url = f"{self.base_url}/api/embeddings"
         
-        # 使用 httpx 發送 POST 請求到 Ollama 的 embeddings API
-        # 請求格式:
+        # Send a POST request to the Ollama embeddings API using httpx.
+        # Request format:
         # {
         #     "model": "nomic-embed-text",
         #     "prompt": "Your text here"
         # }
-        # 回應格式:
+        # Response format:
         # {
         #     "embedding": [0.123, 0.456, ..., 0.789]  # 768-dim vector
         # }
@@ -69,7 +69,7 @@ class Embedder:
             texts: List of texts to embed
             max_concurrent: Max parallel requests to avoid Ollama overload (default: 5)                           (avoid Ollama overload)
             on_progress: Optional callback called after each embedding completes
-                         用於更新進度條的回調函數
+                         Optional callback used to update progress.
         
         Returns:
             list[list[float]]: List of 768-dim vectors
@@ -79,20 +79,20 @@ class Embedder:
             len(vectors)     # 2
             len(vectors[0])  # 768
         """
-        # usage: semaphore = asyncio.Semaphore(5)  # 計數器 = 5
-        # async with semaphore:  # 每次最多 5 個任務同時執行
+        # Example: semaphore = asyncio.Semaphore(5)
+        # async with semaphore limits concurrent tasks.
         semaphore = asyncio.Semaphore(max_concurrent)
         
         async def embed_with_semaphore(text: str) -> list[float]:
             async with semaphore:
                 result = await self.embed(text)
                 # Call progress callback if provided
-                # 如果有提供進度回調，則呼叫它
+                # Call the progress callback if provided.
                 if on_progress:
                     on_progress()
                 return result
         
-        # 並行執行所有 embedding 請求
+        # Run all embedding requests concurrently.
         vectors = await asyncio.gather(
             *[embed_with_semaphore(text) for text in texts]
         )

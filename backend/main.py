@@ -1,8 +1,15 @@
 # FastAPI application entry point
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, JSONResponse
-import asyncio  # asyncio = async library
+from fastapi.responses import StreamingResponse
 from config import settings, LLMProvider
+from services.agent import (
+    Agent,
+    SearchDocsTool,
+    ListDocsTool,
+    GetDocInfoTool,
+    CreateDocTool,
+    DeleteDocTool,
+)
 from services.rag import rag_service
 from services.llm_providers.ollama import OllamaProvider
 from services.llm_providers.groq import GroqProvider
@@ -88,6 +95,45 @@ async def chat(request: Request):
         event_generator(),
         media_type="text/event-stream"
     )
+
+
+@app.post("/api/agent/run")
+async def run_agent(request: Request):
+    """
+    Run the ReAct agent with all available tools.
+
+    Request body:
+        {
+            "message": "What is KDAI?",
+            "provider": "ollama" (optional)
+        }
+    """
+    body = await request.json()
+    message = body.get("message", "")
+    provider_name = body.get("provider")
+
+    provider = get_llm_provider(provider_name)
+    agent = Agent(
+        llm_provider=provider,
+        tools=[
+            SearchDocsTool(),
+            ListDocsTool(),
+            GetDocInfoTool(),
+            CreateDocTool(),
+            DeleteDocTool(),
+        ],
+        max_steps=10,
+    )
+
+    result = await agent.run(message)
+
+    return {
+        "answer": result["answer"],
+        "steps": result["steps"],
+        "sources": result["sources"],
+        "provider": provider_name or settings.default_provider.value,
+    }
+
 # ─────────────────────────────────────────────────────────────
 # Run the app
 # ─────────────────────────────────────────────────────────────

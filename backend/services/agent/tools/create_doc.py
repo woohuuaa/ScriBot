@@ -7,25 +7,22 @@ from services.qdrant_client import qdrant_service
 
 # ─────────────────────────────────────────────────────────────
 # Create Doc Tool
-# 創建文檔工具
 # ─────────────────────────────────────────────────────────────
 #
-# 這個 Tool 會：
-# 1. 將內容寫入 MDX 文件
-# 2. 對文件進行分塊 (chunking)
-# 3. 對每個 chunk 生成 embedding
-# 4. 將 chunks 存入 Qdrant
+# This tool:
+# 1. Writes content to an MDX file
+# 2. Chunks the file
+# 3. Generates embeddings for each chunk
+# 4. Stores the chunks in Qdrant
 # ─────────────────────────────────────────────────────────────
 
 # Path to docs directory (in Docker container)
-# 文檔目錄路徑（在 Docker 容器中）
 DOCS_PATH = Path("/app/Docs/src/content/docs")
 
 
 class CreateDocTool(Tool):
     """
     Tool for creating new documents in the knowledge base
-    在知識庫中創建新文檔的工具
     """
     
     @property

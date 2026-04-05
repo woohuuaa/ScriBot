@@ -43,7 +43,7 @@ backend/services/
 ├── chunker.py               ✅ Day 1 完成
 ├── rag.py                   ✅ Day 2 完成
 │
-└── agent/                   🔄 Day 4-8
+└── agent/                   ✅ Day 4-8 完成
     ├── __init__.py          ✅ Day 5 完成
     ├── tools/
     │   ├── __init__.py      ✅ Day 5 完成
@@ -59,7 +59,7 @@ backend/services/
 backend/scripts/
 └── index_docs.py            ✅ Day 2 完成
 
-backend/main.py              🔄 Day 3 完成，Day 8 再更新
+backend/main.py              ✅ Day 3 + Day 8 完成
 ```
 
 ---
@@ -1872,10 +1872,10 @@ This will remove the document file and all its indexed chunks from the vector da
 
 ---
 
-<details open>
-<summary><b>Day 8: API Endpoint + 整合測試</b> (點擊收合)</summary>
+<details>
+<summary><b>Day 8: API Endpoint + 整合測試 ✅ 完成</b> (點擊展開)</summary>
 
-### 狀態: ⬜ 未開始
+### 狀態: ✅ 完成
 
 ### Task 8.1: 更新 agent/__init__.py
 
@@ -2078,10 +2078,10 @@ curl -X POST http://localhost:8000/api/agent/run \
 - [x] 測試 `CreateDocTool`、新文件搜尋與 `DeleteDocTool`
 
 ### Day 8
-- [ ] 更新 `__init__.py` 文件
-- [ ] 更新 `backend/main.py` (加入 `/api/agent/run`)
-- [ ] End-to-end 測試所有 5 個 Tools
-- [ ] 調整 prompt (如果需要)
+- [x] 更新 `__init__.py` 文件
+- [x] 更新 `backend/main.py` (加入 `/api/agent/run`)
+- [x] End-to-end 測試所有 5 個 Tools
+- [x] 調整 prompt (如果需要)
 
 ---
 

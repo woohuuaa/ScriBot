@@ -15,11 +15,11 @@ from typing import Optional
 # ─────────────────────────────────────────────────────────────
 # 
 # Qdrant Concepts:
-#   - Collection: like a table (類似資料表)
-#   - Point: { id, vector, payload } (一筆資料)
+#   - Collection: like a table
+#   - Point: { id, vector, payload }
 #   - Vector: 768-dim embedding from nomic-embed-text
 #   - Payload: metadata like { source, title, content }
-#   - Distance: Cosine similarity (方向相似度，不看長度)
+#   - Distance: Cosine similarity
 # ─────────────────────────────────────────────────────────────
 
 

@@ -7,7 +7,7 @@ import sys                  # To modify sys.path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent)) # Add parent directory to path for imports
 from services.chunker import chunker # Import the chunker instance
 # Docs path - in Docker container, Docs is mounted at /app/Docs
-# 文檔路徑 - 在 Docker 容器中，Docs 掛載在 /app/Docs
+# Docs path inside the Docker container. Docs is mounted at /app/Docs.
 DOCS_PATH = Path("/app/Docs/src/content/docs")
 def test_single_file():
     """Test chunking a single file"""

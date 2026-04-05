@@ -42,7 +42,7 @@ class GroqProvider(BaseLLMProvider):
         Generate response with streaming
         
         Response: Server-Sent Events (SSE)
-        每個 chunk 長這樣：
+        Each streamed chunk looks like this:
         data: {"choices": [{"delta": {"content": "K"}}]}
         data: {"choices": [{"delta": {"content": "D"}}]}
         data: {"choices": [{"delta": {"content": "AI"}}]}
@@ -50,7 +50,7 @@ class GroqProvider(BaseLLMProvider):
             prompt: The input prompt
 
         Yields:
-            str: Response tokens, one by one / 回應的 token,逐字產生
+            str: Response tokens, one by one
         """
         # ─────────────────────────────────────────────────────────
         # Build the API URL

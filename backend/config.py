@@ -7,8 +7,8 @@ class LLMProvider(str, Enum):
     Supported LLM providers
 
     Example:
-        LLMProvider.OLLAMA  → "ollama"
-        LLMProvider.GROQ    → "groq"
+        LLMProvider.OLLAMA  -> "ollama"
+        LLMProvider.GROQ    -> "groq"
     """
     OLLAMA = "ollama"    # Local LLM
     GROQ = "groq"        # Cloud LLM - Free tier
@@ -64,7 +64,7 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
     # Groq (Backup 1)
     # Get API key: https://console.groq.com/keys
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-specdec"
+    groq_model: str = "llama-3.3-70b-versatile"
     
     # OpenAI (Backup 2)
     # Get API key: https://platform.openai.com/api-keys
@@ -84,28 +84,28 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
     # Must match when creating Qdrant collection
     
     top_k_results: int = 3
-    # Number of relevant chunks to retrieve / 檢索的相關 chunk 數量
-    # 3 = return top 3 most similar chunks / 回傳最相似的 3 個 chunk
+    # Number of relevant chunks to retrieve.
+    # 3 = return the top 3 most similar chunks.
     
     chunk_size: int = 500
-    # Tokens per chunk when splitting docs / 分割文件時每個 chunk 的 token 數
-    # 500 tokens ≈ 2000 characters / 500 tokens 約 2000 字元
+    # Tokens per chunk when splitting docs.
+    # 500 tokens is approximately 2000 characters.
     
     # ─────────────────────────────────────────────────────────
-    # Monitoring Settings / 監控設定
+    # Monitoring settings
     # ─────────────────────────────────────────────────────────
     enable_monitoring: bool = True
     # Enable/disable monitoring
     
     # ─────────────────────────────────────────────────────────
-    # Pydantic Config / Pydantic 設定
+    # Pydantic config
     # ─────────────────────────────────────────────────────────
     class Config:
         env_file = ".env"
-        # Look for .env file in current directory / 在目前目錄找 .env 檔案
+        # Look for the .env file in the current directory.
         
         env_file_encoding = "utf-8"
-        # Encoding for .env file / .env 檔案的編碼
+        # Encoding for the .env file.
     
 # ─────────────────────────────────────────────────────────────
 # Singleton Instance
