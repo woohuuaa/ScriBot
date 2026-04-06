@@ -1,5 +1,6 @@
 # FastAPI application entry point
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import settings, LLMProvider
 from services.agent import (
@@ -21,6 +22,18 @@ app = FastAPI(
     title="ScriBot API",
     description="AI-powered documentation chatbot with RAG",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:4321",
+        "http://127.0.0.1:4321",
+        "https://kdai-docs.vercel.app",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 # ─────────────────────────────────────────────────────────────
 # LLM Provider Factory

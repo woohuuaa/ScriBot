@@ -18,6 +18,9 @@ export default defineConfig({
 		starlight({
 			title: 'KDAI Documentation',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/W-KDAI/kdai2' }],
+			components: {
+				Footer: './src/components/DocsFooter.astro',
+			},
 		}),
 	],
 });
