@@ -1,5 +1,6 @@
 # FastAPI application entry point
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import settings, LLMProvider
 from services.agent import (
@@ -21,6 +22,18 @@ app = FastAPI(
     title="ScriBot API",
     description="AI-powered documentation chatbot with RAG",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:4321",
+        "http://127.0.0.1:4321",
+        "https://kdai-docs.vercel.app",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 # ─────────────────────────────────────────────────────────────
 # LLM Provider Factory
@@ -62,6 +75,30 @@ async def health_check():
         "status": "healthy",
         "service": "ScriBot API"
     }
+
+
+@app.get("/api/providers")
+async def provider_info():
+    """Expose provider/model metadata for frontend labels."""
+    return {
+        "providers": [
+            {
+                "name": "ollama",
+                "model": settings.ollama_model,
+            },
+            {
+                "name": "groq",
+                "model": settings.groq_model,
+            },
+            {
+                "name": "openai",
+                "model": settings.openai_model,
+            },
+        ],
+        "default_provider": settings.default_provider.value,
+    }
+
+
 @app.post("/api/chat")
 async def chat(request: Request):
     """
