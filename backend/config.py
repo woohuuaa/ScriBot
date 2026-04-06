@@ -62,6 +62,9 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
     ollama_base_url: str = "http://ollama:11434"
     ollama_model: str = "llama3.1:8b"
     ollama_embedding_model: str = "nomic-embed-text"
+    ollama_keep_alive: str = "30m"
+    ollama_num_ctx: int = 2048
+    ollama_num_predict: int = 512
     
     # Groq (Backup 1)
     # NOTE: GROQ_* env vars override these defaults.

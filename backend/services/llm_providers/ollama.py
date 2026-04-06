@@ -33,12 +33,22 @@ class OllamaProvider(BaseLLMProvider):
             ],
             "stream": True,
             "think": False,
+            "keep_alive": settings.ollama_keep_alive,
+            "options": {
+                "num_ctx": settings.ollama_num_ctx,
+                "num_predict": settings.ollama_num_predict,
+            },
         }
         generate_payload = {
             "model": self.model,
             "prompt": f"{settings.system_prompt}\n\n{prompt}",
             "stream": True,
             "think": False,
+            "keep_alive": settings.ollama_keep_alive,
+            "options": {
+                "num_ctx": settings.ollama_num_ctx,
+                "num_predict": settings.ollama_num_predict,
+            },
         }
 
         attempted_generate_fallback = False
