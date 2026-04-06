@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
@@ -87,27 +87,150 @@ function getSourceHref(source?: string) {
   return DOC_SOURCE_LINKS[source] ?? null
 }
 
-function formatAssistantContent(content: string) {
-  const parts = content.replace(/\r\n/g, '\n').split(/(```[\s\S]*?```)/g)
+function normalizeQuadBacktickFences(input: string) {
+  return input
+    .replace(/\r\n/g, '\n')
+    .replace(/````([a-zA-Z0-9_-]+)?\n?([\s\S]*?)\n?````/g, (_full, lang, body) => {
+      const language = lang ? String(lang).trim() : ''
+      const inner = String(body).replace(/^\n+|\n+$/g, '')
+      return '\n```' + language + '\n' + inner + '\n```\n'
+    })
+    .replace(/````/g, '```')
+}
 
-  const normalized = parts
+function formatAssistantContent(content: string) {
+  const normalizedFences = normalizeQuadBacktickFences(content)
+  const parts = normalizedFences.split(/(```[\s\S]*?```)/g)
+
+  const withLayoutFixes = parts
     .map((part) => {
       if (part.startsWith('```') && part.endsWith('```')) {
         return part
       }
 
       return part
+        .replace(/\u00a0/g, ' ')
+        .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n$2')
+        .replace(/([^\n])\s*(---)(?=\s*#{1,6}\s)/g, '$1\n$2\n')
+        .replace(/([:：])\s*\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
+        .replace(/([^\n*])\s+\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
+        .replace(/([^\n\s*])\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
+        .replace(/(^|\n)\*\s*(?=[A-Za-z0-9])/g, '$1* ')
+        .replace(/(^|\n)\*(?=[A-Za-z0-9])/g, '$1* ')
+        .replace(/(\d+\.)(?=\S)/g, '$1 ')
+        .replace(/([:：])\s*(\d+\.\s)/g, '$1\n$2')
+        .replace(/([.!?。！？:：])\s*(\d+\.\s)/g, '$1\n$2')
+        .replace(/(#{1,6}[^\n]+?)\s*(?=[-*]\s)/g, '$1\n')
+        .replace(/(\*\*[^\n*]+\*\*)\s*(?=[-*]\s)/g, '$1\n')
         .replace(/(\d+\.\s[^\n]+?)(?=\s*\d+\.\s)/g, '$1\n')
         .replace(/([^\n])\s+(?=[-*]\s)/g, '$1\n')
+        .replace(/([^\n])\n(\d+\.\s)/g, '$1\n\n$2')
     })
     .join('')
 
-  return normalized
-    .replace(/`{4,}/g, '\n```\n')
+  const normalized = withLayoutFixes
+    .replace(/\n{3,}/g, '\n\n')
     .replace(/([^\n])```/g, '$1\n```')
     .replace(/```(bash|sh|json|yaml|yml|python|py|ts|tsx|js|jsx|sql|md)(?=[^\n])/gi, '```$1\n')
     .replace(/```(?=[^\n`])/g, '```\n')
-    .replace(/([^\n])\s*(\d+\.\s)/g, '$1\n$2')
+
+  return normalizeStepLists(normalized)
+}
+
+function normalizeStepLists(text: string) {
+  const prepared = text
+    .replace(/(steps?:\s*)\n+([^\n*][^\n]*?)\n\*/gi, '$1\n* $2\n*')
+    .replace(/([:：]\s*)\n+([^\n*][^\n]*?)\n\*/g, '$1\n* $2\n*')
+
+  const lines = prepared.split('\n')
+  const normalizedLines: string[] = []
+
+  let index = 0
+  while (index < lines.length) {
+    const line = lines[index]
+    const bulletMatch = line.match(/^\s*[-*]\s+(.+)$/)
+
+    if (!bulletMatch) {
+      normalizedLines.push(line)
+      index += 1
+      continue
+    }
+
+    let stepIndex = 1
+    while (index < lines.length) {
+      const current = lines[index]
+      const match = current.match(/^\s*[-*]\s+(.+)$/)
+      if (!match) break
+
+      normalizedLines.push(`${stepIndex}. ${match[1].trim()}`)
+      stepIndex += 1
+      index += 1
+    }
+  }
+
+  return normalizedLines
+    .join('\n')
+    .replace(/([.!?。！？:：])\s*(\d+\.\s)/g, '$1\n$2')
+    .replace(/(\d+\.\s[^\n]+?)(?=\s+\d+\.\s)/g, '$1\n')
+}
+
+function getCodeLanguage(className?: string) {
+  const match = className?.match(/language-([a-zA-Z0-9_+-]+)/)
+  return match?.[1]?.toLowerCase() ?? null
+}
+
+function getCopyableCommand(rawCode: string, className?: string) {
+  const language = getCodeLanguage(className)
+  const commandLanguages = new Set(['bash', 'sh', 'shell', 'zsh', 'console'])
+  const looksLikeCommand = (line: string) =>
+    /^(docker( compose)?|npm|pnpm|yarn|pip|python3?|uvicorn|curl|git|cd|ls|cp|mv|rm|mkdir|cat|echo|export|set|apt(-get)?|brew|kubectl|helm|make|go|node|npx|pytest|bash|sh)\b/i.test(
+      line,
+    )
+
+  const prefix = language ? `${language}\n` : ''
+  const normalized = prefix && rawCode.toLowerCase().startsWith(prefix) ? rawCode.slice(prefix.length) : rawCode
+
+  const commands = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+    .map((line) => line.replace(/^\$\s*/, '').replace(/^>\s*/, ''))
+    .filter((line, index) => {
+      // Drop accidental leading language labels from malformed fences.
+      if (index === 0 && commandLanguages.has(line.toLowerCase())) {
+        return false
+      }
+      return true
+    })
+    .filter((line) => looksLikeCommand(line) || line.includes('&&') || line.includes('||'))
+
+  const commandLanguageDetected = language && commandLanguages.has(language)
+  if (!commandLanguageDetected && !commands.length) {
+    return ''
+  }
+
+  if (!commands.length) {
+    return ''
+  }
+
+  return commands.join('\n')
+}
+
+function getCodeBlockFromPre(children: ReactNode) {
+  const node = Array.isArray(children) ? children.find((child) => isValidElement(child)) : children
+  if (!isValidElement(node)) return null
+
+  const codeElement = node as ReactElement<{ className?: string; children?: ReactNode }>
+  const className = codeElement.props.className
+  const toText = (value: ReactNode): string => {
+    if (typeof value === 'string' || typeof value === 'number') return String(value)
+    if (Array.isArray(value)) return value.map(toText).join('')
+    if (isValidElement(value)) return toText((value as ReactElement<{ children?: ReactNode }>).props.children)
+    return ''
+  }
+  const rawCode = toText(codeElement.props.children ?? '').replace(/\n$/, '')
+
+  return { className, rawCode }
 }
 
 const SOURCE_NAME_PATTERN = new RegExp(
@@ -117,7 +240,12 @@ const SOURCE_NAME_PATTERN = new RegExp(
   'g',
 )
 
-function renderAssistantContent(content: string, onLinkClick: () => void) {
+function renderAssistantContent(
+  content: string,
+  onLinkClick: () => void,
+  onCopyCommand: (command: string) => void,
+  copiedCommand: string | null,
+) {
   const formattedContent = formatAssistantContent(content)
   const linkedContent = formattedContent
     .split(/(```[\s\S]*?```)/g)
@@ -143,6 +271,53 @@ function renderAssistantContent(content: string, onLinkClick: () => void) {
             {children}
           </a>
         ),
+        pre: ({ children }) => {
+          const block = getCodeBlockFromPre(children)
+          if (!block) {
+            return <pre>{children}</pre>
+          }
+
+          const copyValue = getCopyableCommand(block.rawCode, block.className)
+          const isCopied = copiedCommand !== null && copiedCommand === copyValue
+
+          return (
+            <div className="scribot-code-block">
+              {copyValue ? (
+                <button
+                  type="button"
+                  className="scribot-code-copy"
+                  onClick={() => onCopyCommand(copyValue)}
+                  aria-label={isCopied ? 'Copied' : 'Copy command'}
+                  title={isCopied ? 'Copied' : 'Copy command'}
+                >
+                  {isCopied ? (
+                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                      <path
+                        d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06l2.47 2.47 5.97-5.97a.75.75 0 0 1 1.06 0Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                      <path
+                        d="M5.25 1.5A1.75 1.75 0 0 0 3.5 3.25v7.5c0 .966.784 1.75 1.75 1.75h5.5a1.75 1.75 0 0 0 1.75-1.75v-7.5A1.75 1.75 0 0 0 10.75 1.5h-5.5Zm-.25 1.75a.25.25 0 0 1 .25-.25h5.5a.25.25 0 0 1 .25.25v7.5a.25.25 0 0 1-.25.25h-5.5a.25.25 0 0 1-.25-.25v-7.5Z"
+                        fill="currentColor"
+                      />
+                      <path
+                        d="M2 5.25A.75.75 0 0 1 2.75 4.5h.5a.75.75 0 0 1 0 1.5h-.5a.25.25 0 0 0-.25.25v6A1.75 1.75 0 0 0 4.25 14h5.5a.25.25 0 0 0 .25-.25v-.5a.75.75 0 0 1 1.5 0v.5A1.75 1.75 0 0 1 9.75 15h-5.5A3.25 3.25 0 0 1 1 11.75v-6c0-.414.336-.75.75-.75H2Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  )}
+                </button>
+              ) : null}
+              <pre>
+                <code className={block.className}>{block.rawCode}</code>
+              </pre>
+            </div>
+          )
+        },
+        code: ({ className, children }) => <code className={className}>{children}</code>,
       }}
     >
       {linkedContent}
@@ -209,8 +384,21 @@ export default function ScriBotWidget() {
   const [error, setError] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [providerModels, setProviderModels] = useState<Partial<Record<ScribotProvider, string>>>({})
+  const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  async function handleCopyCommand(command: string) {
+    try {
+      await navigator.clipboard.writeText(command)
+      setCopiedCommand(command)
+      window.setTimeout(() => {
+        setCopiedCommand((prev) => (prev === command ? null : prev))
+      }, 1600)
+    } catch {
+      setError('Unable to copy command.')
+    }
+  }
 
   function saveWidgetStateSnapshot() {
     try {
@@ -511,7 +699,9 @@ export default function ScriBotWidget() {
               <div key={message.id} className={`scribot-message scribot-message-${message.role}`}>
                 <div className="scribot-message-role">{message.role === 'user' ? 'You' : 'ScriBot'}</div>
                 <div className="scribot-message-content">
-                  {message.role === 'assistant' ? renderAssistantContent(message.content, saveWidgetStateSnapshot) : message.content}
+                  {message.role === 'assistant'
+                    ? renderAssistantContent(message.content, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)
+                    : message.content}
                 </div>
 
                 {message.mode === 'agent' && message.steps?.length ? (

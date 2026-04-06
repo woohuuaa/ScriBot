@@ -326,6 +326,38 @@
   padding-left: 1.1rem;
 }
 
+.scribot-code-block {
+  position: relative;
+  margin: 0.55rem 0;
+}
+
+.scribot-code-copy {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #1d2a3e;
+  color: #dce8f7;
+  border-radius: 8px;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.scribot-code-copy:hover {
+  background: #263850;
+}
+
+.scribot-code-copy svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
 .scribot-message-content pre {
   background: rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -335,6 +367,10 @@
   overflow-wrap: anywhere;
   word-break: break-word;
   overflow-x: hidden;
+}
+
+.scribot-code-block pre {
+  padding-top: 2rem;
 }
 
 .scribot-message-content code {
