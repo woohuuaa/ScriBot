@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     
     Usage:
         from config import settings
-        settings.ollama_model  # "llama3.1:8b"
+        settings.ollama_model  # From .env/env vars, otherwise fallback default
     """
    
     # LLM Settings
@@ -57,16 +57,20 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
 """
     
     # Ollama (Primary)
+    # NOTE: Values below are fallback defaults.
+    # If OLLAMA_* env vars are present in .env/environment, they override these defaults.
     ollama_base_url: str = "http://ollama:11434"
     ollama_model: str = "llama3.1:8b"
     ollama_embedding_model: str = "nomic-embed-text"
     
     # Groq (Backup 1)
+    # NOTE: GROQ_* env vars override these defaults.
     # Get API key: https://console.groq.com/keys
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
     
     # OpenAI (Backup 2)
+    # NOTE: OPENAI_* env vars override these defaults.
     # Get API key: https://platform.openai.com/api-keys
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"  # Cost-effective choice

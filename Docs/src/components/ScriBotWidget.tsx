@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { runAgent, streamChat, type AgentStep, type AgentSource, type ScribotMode, type ScribotProvider } from '../lib/scribot'
+import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
+import {
+  getProviderInfo,
+  runAgent,
+  streamChat,
+  type AgentStep,
+  type AgentSource,
+  type ScribotMode,
+  type ScribotProvider,
+} from '../lib/scribot'
 import houstonImage from '../assets/houston.webp'
 import '../styles/scribot.css'
 
@@ -12,6 +23,22 @@ type ChatMessage = {
   steps?: AgentStep[]
   sources?: AgentSource[]
 }
+
+type PersistedWidgetState = {
+  open: boolean
+  input: string
+  draftInput: string
+  questionHistory: string[]
+  historyIndex: number | null
+  provider: ScribotProvider
+  mode: ScribotMode
+  messages: ChatMessage[]
+}
+
+const WIDGET_STATE_KEY = 'scribot-widget-state-v1'
+const MAX_QA_PAIRS = 20
+const MAX_STORED_MESSAGES = MAX_QA_PAIRS * 2
+const MAX_STORED_MESSAGE_BYTES = 300 * 1024
 
 const DOC_SOURCE_LINKS: Record<string, string> = {
   'index.mdx': '/',
@@ -60,6 +87,29 @@ function getSourceHref(source?: string) {
   return DOC_SOURCE_LINKS[source] ?? null
 }
 
+function formatAssistantContent(content: string) {
+  const parts = content.replace(/\r\n/g, '\n').split(/(```[\s\S]*?```)/g)
+
+  const normalized = parts
+    .map((part) => {
+      if (part.startsWith('```') && part.endsWith('```')) {
+        return part
+      }
+
+      return part
+        .replace(/(\d+\.\s[^\n]+?)(?=\s*\d+\.\s)/g, '$1\n')
+        .replace(/([^\n])\s+(?=[-*]\s)/g, '$1\n')
+    })
+    .join('')
+
+  return normalized
+    .replace(/`{4,}/g, '\n```\n')
+    .replace(/([^\n])```/g, '$1\n```')
+    .replace(/```(bash|sh|json|yaml|yml|python|py|ts|tsx|js|jsx|sql|md)(?=[^\n])/gi, '```$1\n')
+    .replace(/```(?=[^\n`])/g, '```\n')
+    .replace(/([^\n])\s*(\d+\.\s)/g, '$1\n$2')
+}
+
 const SOURCE_NAME_PATTERN = new RegExp(
   `(${Object.keys(DOC_SOURCE_LINKS)
     .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
@@ -67,17 +117,82 @@ const SOURCE_NAME_PATTERN = new RegExp(
   'g',
 )
 
-function renderContentWithSourceLinks(content: string) {
-  const parts = content.split(SOURCE_NAME_PATTERN)
-  return parts.map((part, index) => {
-    const href = DOC_SOURCE_LINKS[part]
-    if (!href) return <span key={`text-${index}`}>{part}</span>
-    return (
-      <a key={`source-${index}`} href={href} className="scribot-inline-source-link">
-        {part}
-      </a>
-    )
-  })
+function renderAssistantContent(content: string, onLinkClick: () => void) {
+  const formattedContent = formatAssistantContent(content)
+  const linkedContent = formattedContent
+    .split(/(```[\s\S]*?```)/g)
+    .map((part) => {
+      if (part.startsWith('```') && part.endsWith('```')) {
+        return part
+      }
+
+      return part.replace(SOURCE_NAME_PATTERN, (sourceName) => {
+        const href = DOC_SOURCE_LINKS[sourceName]
+        if (!href) return sourceName
+        return `[${sourceName}](${href})`
+      })
+    })
+    .join('')
+
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkBreaks]}
+      components={{
+        a: ({ href, children }) => (
+          <a href={href ?? '#'} className="scribot-inline-source-link" target="_self" onClick={onLinkClick}>
+            {children}
+          </a>
+        ),
+      }}
+    >
+      {linkedContent}
+    </ReactMarkdown>
+  )
+}
+
+function estimateMessageBytes(message: ChatMessage) {
+  try {
+    return new TextEncoder().encode(JSON.stringify(message)).length
+  } catch {
+    return JSON.stringify(message).length
+  }
+}
+
+function trimMessages(messages: ChatMessage[]) {
+  const byCount = messages.slice(-MAX_STORED_MESSAGES)
+  const selected: ChatMessage[] = []
+  let totalBytes = 0
+
+  for (let index = byCount.length - 1; index >= 0; index -= 1) {
+    const message = byCount[index]
+    const nextBytes = estimateMessageBytes(message)
+
+    if (selected.length > 0 && totalBytes + nextBytes > MAX_STORED_MESSAGE_BYTES) {
+      break
+    }
+
+    selected.unshift(message)
+    totalBytes += nextBytes
+  }
+
+  if (!selected.length && byCount.length) {
+    return [byCount[byCount.length - 1]]
+  }
+
+  return selected
+}
+
+function trimQuestionHistory(history: string[]) {
+  return history.slice(-MAX_QA_PAIRS)
+}
+
+function formatProviderLabel(provider: ScribotProvider, modelName?: string) {
+  if (provider === 'ollama' && modelName) {
+    return `Ollama (${modelName})`
+  }
+
+  if (provider === 'ollama') return 'Ollama'
+  return 'Groq'
 }
 
 export default function ScriBotWidget() {
@@ -85,13 +200,39 @@ export default function ScriBotWidget() {
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
+  const [draftInput, setDraftInput] = useState('')
+  const [questionHistory, setQuestionHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const [provider, setProvider] = useState<ScribotProvider>('ollama')
-  const [mode, setMode] = useState<ScribotMode>('chat')
+  const [mode, setMode] = useState<ScribotMode>('agent')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [providerModels, setProviderModels] = useState<Partial<Record<ScribotProvider, string>>>({})
   const listRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  function saveWidgetStateSnapshot() {
+    try {
+      const nextQuestionHistory = trimQuestionHistory(questionHistory)
+      const nextMessages = trimMessages(messages)
+      const nextHistoryIndex = historyIndex !== null && historyIndex >= nextQuestionHistory.length ? null : historyIndex
+
+      const snapshot: PersistedWidgetState = {
+        open,
+        input,
+        draftInput,
+        questionHistory: nextQuestionHistory,
+        historyIndex: nextHistoryIndex,
+        provider,
+        mode,
+        messages: nextMessages,
+      }
+      window.sessionStorage.setItem(WIDGET_STATE_KEY, JSON.stringify(snapshot))
+    } catch {
+      // Ignore storage write errors.
+    }
+  }
 
   // Keep the latest message visible.
   useEffect(() => {
@@ -99,8 +240,78 @@ export default function ScriBotWidget() {
   }, [messages, loading])
 
   useEffect(() => {
-    setMounted(true)
+    try {
+      const raw = window.sessionStorage.getItem(WIDGET_STATE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<PersistedWidgetState>
+        if (typeof parsed.open === 'boolean') setOpen(parsed.open)
+        if (typeof parsed.input === 'string') setInput(parsed.input)
+        if (typeof parsed.draftInput === 'string') setDraftInput(parsed.draftInput)
+        if (Array.isArray(parsed.questionHistory)) {
+          setQuestionHistory(trimQuestionHistory(parsed.questionHistory.filter((item) => typeof item === 'string')))
+        }
+        if (parsed.historyIndex === null || typeof parsed.historyIndex === 'number') {
+          setHistoryIndex(parsed.historyIndex)
+        }
+        if (parsed.provider === 'ollama' || parsed.provider === 'groq') {
+          setProvider(parsed.provider)
+        }
+        if (parsed.mode === 'chat' || parsed.mode === 'agent') {
+          setMode(parsed.mode)
+        }
+        if (Array.isArray(parsed.messages)) {
+          setMessages(
+            trimMessages(
+              parsed.messages.filter(
+                (message): message is ChatMessage =>
+                  typeof message === 'object' &&
+                  message !== null &&
+                  typeof message.id === 'string' &&
+                  (message.role === 'user' || message.role === 'assistant') &&
+                  typeof message.content === 'string' &&
+                  (message.mode === 'chat' || message.mode === 'agent'),
+              ),
+            ),
+          )
+        }
+      }
+    } catch {
+      // Ignore storage read/parse errors.
+    } finally {
+      setMounted(true)
+    }
   }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+    saveWidgetStateSnapshot()
+  }, [mounted, open, input, draftInput, questionHistory, historyIndex, provider, mode, messages])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadProviderInfo() {
+      try {
+        const info = await getProviderInfo()
+        if (cancelled) return
+
+        const nextModels: Partial<Record<ScribotProvider, string>> = {}
+        for (const item of info.providers) {
+          if (item.name === 'ollama' || item.name === 'groq') {
+            nextModels[item.name] = item.model
+          }
+        }
+        setProviderModels(nextModels)
+      } catch {
+        // Keep default labels when provider metadata is unavailable.
+      }
+    }
+
+    void loadProviderInfo()
+    return () => {
+      cancelled = true
+    }
+  }, [mounted])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -114,6 +325,13 @@ export default function ScriBotWidget() {
     const question = input.trim()
     if (!question || loading) return
 
+    setQuestionHistory((prev) => {
+      if (prev[prev.length - 1] === question) return prev
+      return trimQuestionHistory([...prev, question])
+    })
+    setHistoryIndex(null)
+    setDraftInput('')
+
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -121,7 +339,7 @@ export default function ScriBotWidget() {
       mode,
     }
 
-    setMessages((prev) => [...prev, userMessage])
+    setMessages((prev) => trimMessages([...prev, userMessage]))
     setInput('')
     setError(null)
     setLoading(true)
@@ -130,10 +348,12 @@ export default function ScriBotWidget() {
       if (mode === 'chat') {
         // Create an empty assistant message and append SSE chunks into it.
         const assistantId = crypto.randomUUID()
-        setMessages((prev) => [
-          ...prev,
-          { id: assistantId, role: 'assistant', content: '', mode: 'chat' },
-        ])
+        setMessages((prev) =>
+          trimMessages([
+            ...prev,
+            { id: assistantId, role: 'assistant', content: '', mode: 'chat' },
+          ]),
+        )
 
         await streamChat(question, provider, (chunk) => {
           setMessages((prev) =>
@@ -147,17 +367,19 @@ export default function ScriBotWidget() {
       } else {
         // Agent mode returns the final answer, reasoning steps, and sources as JSON.
         const result = await runAgent(question, provider)
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: result.answer,
-            mode: 'agent',
-            steps: result.steps,
-            sources: result.sources,
-          },
-        ])
+        setMessages((prev) =>
+          trimMessages([
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: result.answer,
+              mode: 'agent',
+              steps: result.steps,
+              sources: result.sources,
+            },
+          ]),
+        )
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected error')
@@ -171,6 +393,43 @@ export default function ScriBotWidget() {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       void handleSubmit()
+      return
+    }
+
+    if (event.key === 'ArrowUp' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (!questionHistory.length) return
+
+      const target = event.currentTarget
+      const atStart = target.selectionStart === 0 && target.selectionEnd === 0
+      if (!atStart && input.trim()) return
+
+      event.preventDefault()
+      if (historyIndex === null) {
+        const lastIndex = questionHistory.length - 1
+        setDraftInput(input)
+        setHistoryIndex(lastIndex)
+        setInput(questionHistory[lastIndex])
+      } else if (historyIndex > 0) {
+        const nextIndex = historyIndex - 1
+        setHistoryIndex(nextIndex)
+        setInput(questionHistory[nextIndex])
+      }
+      return
+    }
+
+    if (event.key === 'ArrowDown' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (historyIndex === null) return
+
+      event.preventDefault()
+      const lastIndex = questionHistory.length - 1
+      if (historyIndex < lastIndex) {
+        const nextIndex = historyIndex + 1
+        setHistoryIndex(nextIndex)
+        setInput(questionHistory[nextIndex])
+      } else {
+        setHistoryIndex(null)
+        setInput(draftInput)
+      }
     }
   }
 
@@ -213,8 +472,8 @@ export default function ScriBotWidget() {
               onChange={(e) => setProvider(e.target.value as ScribotProvider)}
               aria-label="Select LLM provider"
             >
-              <option value="ollama">Ollama</option>
-              <option value="groq">Groq</option>
+              <option value="ollama">{formatProviderLabel('ollama', providerModels.ollama)}</option>
+              <option value="groq">{formatProviderLabel('groq', providerModels.groq)}</option>
             </select>
 
             <div className="scribot-mode-group" role="tablist" aria-label="ScriBot mode selector">
@@ -252,7 +511,7 @@ export default function ScriBotWidget() {
               <div key={message.id} className={`scribot-message scribot-message-${message.role}`}>
                 <div className="scribot-message-role">{message.role === 'user' ? 'You' : 'ScriBot'}</div>
                 <div className="scribot-message-content">
-                  {message.role === 'assistant' ? renderContentWithSourceLinks(message.content) : message.content}
+                  {message.role === 'assistant' ? renderAssistantContent(message.content, saveWidgetStateSnapshot) : message.content}
                 </div>
 
                 {message.mode === 'agent' && message.steps?.length ? (
@@ -313,7 +572,7 @@ export default function ScriBotWidget() {
                       {message.sources.map((source, index) => (
                         <li key={`${source.source ?? 'source'}-${index}`} className="scribot-source-chip">
                           {getSourceHref(source.source) ? (
-                            <a href={getSourceHref(source.source) ?? '#'}>
+                            <a href={getSourceHref(source.source) ?? '#'} target="_self" onClick={saveWidgetStateSnapshot}>
                               {source.source ?? source.title ?? 'Unknown source'}
                             </a>
                           ) : (
@@ -335,7 +594,13 @@ export default function ScriBotWidget() {
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value)
+                if (historyIndex !== null) {
+                  setHistoryIndex(null)
+                  setDraftInput('')
+                }
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Ask about KDAI documentation..."
               rows={1}

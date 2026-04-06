@@ -11,7 +11,6 @@ class OllamaProvider(BaseLLMProvider):
         self.base_url = settings.ollama_base_url
         self.model = settings.ollama_model
         # base_url = "http://localhost:11434"
-        # model = "llama3.1:8b"
     
     def get_name(self) -> str:
         return "ollama"
@@ -23,76 +22,71 @@ class OllamaProvider(BaseLLMProvider):
         self, 
         prompt: str
     ) -> AsyncGenerator[str, None]:
-        # ─────────────────────────────────────────────────────────
-        # Build the API URL
-        # ─────────────────────────────────────────────────────────
-        url = f"{self.base_url}/api/chat"
-        # Example: "http://localhost:11434/api/chat"
-        
-        # ─────────────────────────────────────────────────────────
-        # Prepare request body (OpenAI-compatible format)
-        # ─────────────────────────────────────────────────────────
-        payload = {
+        chat_url = f"{self.base_url}/api/chat"
+        generate_url = f"{self.base_url}/api/generate"
+
+        chat_payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": settings.system_prompt},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
-            "stream": True,  # Enable streaming
+            "stream": True,
+            "think": False,
         }
-        
-        # ─────────────────────────────────────────────────────────
-        # Make async HTTP request
-        # ─────────────────────────────────────────────────────────
+        generate_payload = {
+            "model": self.model,
+            "prompt": f"{settings.system_prompt}\n\n{prompt}",
+            "stream": True,
+            "think": False,
+        }
+
+        attempted_generate_fallback = False
+
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
-            # httpx.AsyncClient = async HTTP client
-            # timeout=120.0 = wait up to 120 seconds
-            # async with = auto cleanup
-            
-            async with client.stream(
-                "POST",      # HTTP method
-                url,         # URL to call
-                json=payload # Request body as JSON
-            ) as response:
-                # client.stream() = for streaming responses
-                # More suitable for streaming responses than client.post().
-                
-                # Check if request succeeded
-                response.raise_for_status()
-                # Raise an exception if the status code is not 200-299.
-                
-                # ─────────────────────────────────────────────────────────
-                # Parse streaming JSON lines
-                # ─────────────────────────────────────────────────────────
-                import json
-                async for line in response.aiter_lines():
-                    # response.aiter_lines() = iterate over lines in response
-                    
-                    # Skip empty lines
-                    if not line:
+            for url, payload, parse_mode in (
+                (chat_url, chat_payload, "chat"),
+                (generate_url, generate_payload, "generate"),
+            ):
+                try:
+                    async with client.stream("POST", url, json=payload) as response:
+                        response.raise_for_status()
+
+                        import json
+
+                        async for line in response.aiter_lines():
+                            if not line:
+                                continue
+
+                            if line.startswith("data:"):
+                                json_str = line[5:].strip()
+                            else:
+                                json_str = line
+
+                            try:
+                                data = json.loads(json_str)
+                            except json.JSONDecodeError:
+                                continue
+
+                            if parse_mode == "chat":
+                                content = data.get("message", {}).get("content", "")
+                            else:
+                                content = data.get("response", "")
+
+                            if content:
+                                yield content
+
+                            if data.get("done", False):
+                                return
+                except httpx.HTTPStatusError as exc:
+                    # Older Ollama versions may not support /api/chat.
+                    if parse_mode == "chat" and exc.response.status_code == 404:
+                        attempted_generate_fallback = True
                         continue
-                    
-                    # Remove "data:" prefix if present (SSE format)
-                    if line.startswith("data:"):
-                        json_str = line[5:].strip()
-                    else:
-                        json_str = line
-                    
-                    try:
-                        data = json.loads(json_str)
-                        # data = {"message": {"content": "K"}, "done": False}
-                        
-                        content = data.get("message", {}).get("content", "")
-                        
-                        if content:
-                            yield content
-                        
-                        # Check if generation is done
-                        if data.get("done", False):
-                            break
-                            
-                    except json.JSONDecodeError:
-                        continue
+                    raise
+
+        if attempted_generate_fallback:
+            raise RuntimeError("Ollama fallback to /api/generate did not produce a response.")
 # ─────────────────────────────────────────────────────────────
 # Example usage
 # ─────────────────────────────────────────────────────────────

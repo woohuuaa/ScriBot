@@ -75,6 +75,30 @@ async def health_check():
         "status": "healthy",
         "service": "ScriBot API"
     }
+
+
+@app.get("/api/providers")
+async def provider_info():
+    """Expose provider/model metadata for frontend labels."""
+    return {
+        "providers": [
+            {
+                "name": "ollama",
+                "model": settings.ollama_model,
+            },
+            {
+                "name": "groq",
+                "model": settings.groq_model,
+            },
+            {
+                "name": "openai",
+                "model": settings.openai_model,
+            },
+        ],
+        "default_provider": settings.default_provider.value,
+    }
+
+
 @app.post("/api/chat")
 async def chat(request: Request):
     """

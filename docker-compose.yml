@@ -18,17 +18,16 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    working_dir: /app/backend
     volumes:
       # Mount local code for development (hot reload)
-      # 開發用：掛載本地代碼，修改後立即生效
-      - ./backend:/app
+      - ./backend:/app/backend
       # Mount Docs for indexing
-      # 掛載文檔供索引使用
       - ./Docs:/app/Docs
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
     depends_on:
@@ -50,7 +49,7 @@ services:
     volumes:
       - ./qdrant_storage:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/6333' || exit 1"]
+      test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/6333' || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5

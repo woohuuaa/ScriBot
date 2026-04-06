@@ -22,6 +22,16 @@ export interface AgentResponse {
   provider: string
 }
 
+export interface ProviderInfo {
+  name: ScribotProvider | 'openai'
+  model: string
+}
+
+export interface ProviderInfoResponse {
+  providers: ProviderInfo[]
+  default_provider: string
+}
+
 // Use a public env var in deployed environments and default to local backend in development.
 const API_BASE = import.meta.env.PUBLIC_SCRIBOT_API_BASE ?? 'http://localhost:8000'
 
@@ -86,6 +96,16 @@ export async function runAgent(
 
   if (!response.ok) {
     throw new Error(`Agent request failed: ${response.status}`)
+  }
+
+  return response.json()
+}
+
+export async function getProviderInfo(): Promise<ProviderInfoResponse> {
+  const response = await fetch(`${API_BASE}/api/providers`)
+
+  if (!response.ok) {
+    throw new Error(`Provider info request failed: ${response.status}`)
   }
 
   return response.json()
