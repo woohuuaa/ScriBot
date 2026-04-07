@@ -1,6 +1,6 @@
 # ScriBot
 
-> **RAG-Powered AI Agent** for KDAI Documentation with ReAct Architecture and 5 Tools
+> **RAG-Powered AI Assistant** for KDAI Documentation with chat, agent, and docs widget UI
 
 ## What is This?
 
@@ -9,7 +9,9 @@ ScriBot is a **documentation assistant** that uses:
 - **ReAct Agent Architecture** for multi-step reasoning
 - **5 Modular Tools** for knowledge base management (search, list, info, create, delete)
 - **Vector Embeddings** (Qdrant + nomic-embed-text) for semantic search
-- **Multiple LLM Providers** (Ollama/Groq/OpenAI) with automatic fallback
+- **Multiple LLM Providers** (Ollama/Groq/OpenAI)
+- **Astro + Starlight widget UI** with floating launcher, streaming chat, agent steps, and source links
+- **Session-persistent widget state** so source navigation keeps the conversation open
 
 ```
 User: "List all documents, then create a new guide about testing"
@@ -50,20 +52,30 @@ Agent:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
+│                  Astro + Starlight Docs Frontend                │
+│                                                                 │
+│  Floating ScriBot widget                                         │
+│  - Chat mode (SSE streaming)                                     │
+│  - Agent mode (default, with steps + sources)                    │
+│  - Provider switcher (Ollama / Groq)                             │
+└──────────────────────────────────┬──────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────┐
 │                         FastAPI Backend                         │
 │                                                                 │
 │  POST /api/chat        ← RAG-enhanced chat                      │
 │  POST /api/agent/run   ← ReAct Agent with 5 tools               │
+│  GET  /api/providers   ← Provider/model metadata                │
 │  GET  /api/health      ← Health check                           │
 └──────────────────────────────────┬──────────────────────────────┘
                                    │
         ┌──────────────────────────┼──────────────────────────────┐
         ▼                          ▼                              ▼
 ┌───────────────┐          ┌───────────────┐              ┌───────────────┐
-│    Qdrant     │          │    Ollama     │              │     Groq      │
-│  Vector DB    │          │  Embeddings   │              │     LLM       │
-│  (Semantic    │          │  + Local LLM  │              │  (Cloud LLM)  │
-│   Search)     │          │               │              │               │
+│    Qdrant     │          │    Ollama     │              │  Groq/OpenAI  │
+│  Vector DB    │          │  Local LLM    │              │  Cloud LLMs   │
+│  + Search     │          │ + Embeddings  │              │               │
 └───────────────┘          └───────────────┘              └───────────────┘
 ```
 
@@ -76,15 +88,17 @@ Agent:
 | **ReAct Agent** (not simple RAG) | Multi-step reasoning, transparent thought process, extensible tool system |
 | **5 Modular Tools** (not hardcoded) | Easy to extend - just add new Tool class |
 | **Hand-written Pipeline** (not LangChain) | Full control, no abstraction overhead, interview-ready code |
+| **Docs Widget in Starlight** | Keeps the assistant embedded inside the documentation site |
 
 ## Project Structure
 
 ```
 ScriBot/
-├── docker-compose.yml              # Ollama + Backend + Qdrant
+├── docker-compose.yml              # Ollama + Backend + Qdrant (local dev)
 ├── backend/
 │   ├── main.py                     # FastAPI endpoints
 │   ├── config.py                   # Settings (embedding dim, top-k, etc.)
+│   ├── .env                        # Backend-specific local settings
 │   │
 │   ├── services/
 │   │   ├── embedder.py             # Ollama embedding (nomic-embed-text)
@@ -110,9 +124,14 @@ ScriBot/
 │   │       └── openai.py           # Cloud LLM (paid)
 │   │
 │   └── scripts/
-│       └── index_docs.py           # Index 30+ MDX files into Qdrant
+│       └── index_docs.py           # Index docs into Qdrant
 │
-└── Docs/src/content/docs/          # KDAI documentation (30+ MDX files)
+├── Docs/
+│   ├── src/components/ScriBotWidget.tsx   # Floating chatbot widget
+│   ├── src/lib/scribot.ts                 # Frontend API client
+│   ├── src/styles/scribot.css             # Widget styling
+│   └── src/content/docs/                  # KDAI documentation source
+└── qdrant_storage/                 # Local Qdrant persistence
 ```
 
 ## RAG Pipeline
@@ -174,17 +193,17 @@ while not done:
 docker compose up -d
 
 # 2. Index documentation (first time only)
-docker compose exec backend python -m scripts.index_docs
+docker compose exec backend python scripts/index_docs.py
 
 # 3. Test RAG chat
 curl -X POST http://localhost:8000/api/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "What is KDAI?"}'
+  -d '{"question": "What is KDAI?", "provider": "ollama"}'
 
 # 4. Test Agent with search
 curl -X POST http://localhost:8000/api/agent/run \
   -H "Content-Type: application/json" \
-  -d '{"message": "Explain KDAI architecture and how to install it"}'
+  -d '{"message": "Explain KDAI architecture and how to install it", "provider": "groq"}'
 
 # 5. Test Agent with document management
 curl -X POST http://localhost:8000/api/agent/run \
@@ -192,10 +211,30 @@ curl -X POST http://localhost:8000/api/agent/run \
   -d '{"message": "List all documents, then create a new guide about testing"}'
 ```
 
+## Current Status
+
+- Backend chat and agent endpoints are working
+- Docs widget is mounted into the Astro + Starlight site
+- Chat mode supports SSE streaming
+- Agent mode is the default mode and shows steps and source links
+- Provider labels expose the active model name via `/api/providers`
+- Source links stay in-page and preserve widget state via `sessionStorage`
+- Ollama is mainly for local development, while Groq is recommended for faster demos
+
+## Deployment Recommendation
+
+- **Frontend:** deploy `Docs/` to Vercel
+- **Backend provider for demos:** prefer Groq for faster and more reliable live responses
+- **Backend hosting:** Railway is the fastest short-term demo path; EC2 is better for longer-lived infrastructure and full control
+- **Ollama:** use mainly for local development, not public demos, unless you control the machine and accept slower first-token latency
+- Set `PUBLIC_SCRIBOT_API_BASE` in the Docs frontend to point at the deployed backend URL
+- Ensure `Docs/src/content/docs` is available to the backend before running `python scripts/index_docs.py`
+
 ## Tech Stack
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
+| **Frontend** | Astro + Starlight + React | Documentation site and floating widget UI |
 | **Backend** | FastAPI (Python) | Async API server |
 | **Vector DB** | Qdrant | Semantic search with cosine similarity |
 | **Embeddings** | Ollama (nomic-embed-text) | 768-dim text embeddings |
