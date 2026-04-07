@@ -500,14 +500,18 @@ function formatProviderLabel(provider: ScribotProvider, modelName?: string) {
   }
 
   if (provider === 'ollama') return 'Ollama'
-  return 'Groq'
+  return 'Groq (Recommended)'
 }
 
-function formatRequestError(error: unknown) {
+function formatRequestError(error: unknown, provider?: ScribotProvider) {
   const message = error instanceof Error ? error.message : 'Unexpected error'
 
   if (message.includes('429') || /Too Many Requests/i.test(message)) {
     return 'Groq rate limit reached. Please retry or switch to Ollama.'
+  }
+
+  if (provider === 'ollama' && (/Name or service not known/i.test(message) || /getaddrinfo/i.test(message))) {
+    return 'Ollama is not available on this deployment. Use Ollama locally, or switch to Groq here.'
   }
 
   if (/Failed to fetch/i.test(message)) {
@@ -531,6 +535,7 @@ export default function ScriBotWidget() {
   const [error, setError] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [providerModels, setProviderModels] = useState<Partial<Record<ScribotProvider, string>>>({})
+  const [providerAvailability, setProviderAvailability] = useState<Partial<Record<ScribotProvider, boolean>>>({})
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -639,12 +644,15 @@ export default function ScriBotWidget() {
         if (cancelled) return
 
         const nextModels: Partial<Record<ScribotProvider, string>> = {}
+        const nextAvailability: Partial<Record<ScribotProvider, boolean>> = {}
         for (const item of info.providers) {
           if (item.name === 'ollama' || item.name === 'groq') {
             nextModels[item.name] = item.model
+            nextAvailability[item.name] = item.available
           }
         }
         setProviderModels(nextModels)
+        setProviderAvailability(nextAvailability)
       } catch {
         // Keep default labels when provider metadata is unavailable.
       }
@@ -725,7 +733,7 @@ export default function ScriBotWidget() {
         )
       }
     } catch (err) {
-      setError(formatRequestError(err))
+      setError(formatRequestError(err, provider))
     } finally {
       setLoading(false)
     }
@@ -815,8 +823,14 @@ export default function ScriBotWidget() {
               onChange={(e) => setProvider(e.target.value as ScribotProvider)}
               aria-label="Select LLM provider"
             >
-              <option value="ollama">{formatProviderLabel('ollama', providerModels.ollama)}</option>
-              <option value="groq">{formatProviderLabel('groq', providerModels.groq)}</option>
+              <option value="ollama">
+                {formatProviderLabel('ollama', providerModels.ollama)}
+                {providerAvailability.ollama === false ? ' (Local only)' : ''}
+              </option>
+              <option value="groq">
+                {formatProviderLabel('groq', providerModels.groq)}
+                {providerAvailability.groq === false ? ' (Unavailable)' : ''}
+              </option>
             </select>
 
             <div className="scribot-mode-group" role="tablist" aria-label="ScriBot mode selector">
@@ -842,6 +856,10 @@ export default function ScriBotWidget() {
               ⟲
             </button>
           </div>
+
+          {provider === 'ollama' && providerAvailability.ollama === false ? (
+            <div className="scribot-provider-hint">Ollama is intended for local development only.</div>
+          ) : null}
 
           <div className="scribot-messages" ref={listRef}>
             {messages.length === 0 ? (

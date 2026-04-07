@@ -166,6 +166,12 @@
   background: transparent;
 }
 
+.scribot-provider-hint {
+  padding: 0.25rem 0.75rem 0;
+  font-size: 0.76rem;
+  color: #9fb1c8;
+}
+
 .scribot-provider-select {
   border: 1px solid var(--sl-color-hairline-shade);
   -webkit-appearance: none;

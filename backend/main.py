@@ -1,5 +1,6 @@
 # FastAPI application entry point
 import asyncio
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -91,19 +92,36 @@ async def health_check():
 @app.get("/api/providers")
 async def provider_info():
     """Expose provider/model metadata for frontend labels."""
+    async def is_ollama_available() -> bool:
+        try:
+            parsed = urlparse(settings.ollama_base_url)
+            if not parsed.scheme or not parsed.netloc:
+                return False
+
+            async with httpx.AsyncClient(timeout=httpx.Timeout(2.0, connect=1.5)) as client:
+                response = await client.get(f"{settings.ollama_base_url}/api/tags")
+                return response.is_success
+        except Exception:
+            return False
+
+    ollama_available = await is_ollama_available()
+
     return {
         "providers": [
             {
                 "name": "ollama",
                 "model": settings.ollama_model,
+                "available": ollama_available,
             },
             {
                 "name": "groq",
                 "model": settings.groq_model,
+                "available": bool(settings.groq_api_key),
             },
             {
                 "name": "openai",
                 "model": settings.openai_model,
+                "available": bool(settings.openai_api_key),
             },
         ],
         "default_provider": settings.default_provider.value,

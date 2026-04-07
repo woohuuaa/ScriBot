@@ -25,6 +25,7 @@ export interface AgentResponse {
 export interface ProviderInfo {
   name: ScribotProvider | 'openai'
   model: string
+  available: boolean
 }
 
 export interface ProviderInfoResponse {
