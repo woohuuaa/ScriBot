@@ -326,6 +326,10 @@
   padding-left: 1.1rem;
 }
 
+.scribot-message-content li + li {
+  margin-top: 0.6rem;
+}
+
 .scribot-code-block {
   position: relative;
   margin: 0.55rem 0;
@@ -464,6 +468,41 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.scribot-step-observation p,
+.scribot-step-observation ul,
+.scribot-step-observation ol,
+.scribot-step-observation pre,
+.scribot-step-observation blockquote {
+  margin: 0.45rem 0;
+}
+
+.scribot-step-observation p:first-child,
+.scribot-step-observation ul:first-child,
+.scribot-step-observation ol:first-child,
+.scribot-step-observation pre:first-child,
+.scribot-step-observation blockquote:first-child {
+  margin-top: 0;
+}
+
+.scribot-step-observation p:last-child,
+.scribot-step-observation ul:last-child,
+.scribot-step-observation ol:last-child,
+.scribot-step-observation pre:last-child,
+.scribot-step-observation blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.scribot-step-observation ul,
+.scribot-step-observation ol {
+  padding-left: 1.1rem;
+}
+
+.scribot-step-observation a {
+  color: #9fd4ff;
+  text-decoration: underline;
+  text-underline-offset: 0.1em;
 }
 
 .scribot-step-observation-details summary {

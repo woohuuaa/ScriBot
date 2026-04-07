@@ -110,14 +110,23 @@ function formatAssistantContent(content: string) {
 
       return part
         .replace(/\u00a0/g, ' ')
+        .replace(/([.!?。！？])([A-Z][a-z])/g, '$1\n\n$2')
+        .replace(/\*\*(Backend|Frontend|Services|Infrastructure)\*\*:/g, '**$1:**')
+        .replace(/([^\n])\s*(\*\*(Backend|Frontend|Services|Infrastructure):?\*\*)/g, '$1\n\n* $2 ')
+        .replace(/([^\n])\s*(Backend|Frontend|Services|Infrastructure):\s*/g, '$1\n\n* **$2:** ')
+        .replace(/(\))([A-Z][a-z])/g, '$1\n\n$2')
         .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n$2')
         .replace(/([^\n])\s*(---)(?=\s*#{1,6}\s)/g, '$1\n$2\n')
+        .replace(/(include:|including:)\s*\+/gi, '$1\n+ ')
         .replace(/([:：])\s*\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
         .replace(/([^\n*])\s+\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
         .replace(/([^\n\s*])\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
+        .replace(/([^\n\s+])\+(?=\s*[A-Za-z0-9])/g, '$1\n+ ')
+        .replace(/(^|\n)\+\s*(?=[A-Za-z0-9])/g, '$1+ ')
         .replace(/(^|\n)\*\s*(?=[A-Za-z0-9])/g, '$1* ')
         .replace(/(^|\n)\*(?=[A-Za-z0-9])/g, '$1* ')
-        .replace(/(\d+\.)(?=\S)/g, '$1 ')
+        .replace(/(\d+)\.\s+(\d+)/g, '$1.$2')
+        .replace(/(^|[\n:：.!?。！？]\s*)(\d+\.)(?=\S)/g, '$1$2 ')
         .replace(/([:：])\s*(\d+\.\s)/g, '$1\n$2')
         .replace(/([.!?。！？:：])\s*(\d+\.\s)/g, '$1\n$2')
         .replace(/(#{1,6}[^\n]+?)\s*(?=[-*]\s)/g, '$1\n')
@@ -134,13 +143,21 @@ function formatAssistantContent(content: string) {
     .replace(/```(bash|sh|json|yaml|yml|python|py|ts|tsx|js|jsx|sql|md)(?=[^\n])/gi, '```$1\n')
     .replace(/```(?=[^\n`])/g, '```\n')
 
-  return normalizeStepLists(normalized)
+  return normalizeSectionBullets(shouldNormalizeStepLists(normalized) ? normalizeStepLists(normalized) : normalized)
+}
+
+function shouldNormalizeStepLists(text: string) {
+  return /(quick-start|quick start|checklist|follow these steps|minimum steps|steps?:)/i.test(text)
 }
 
 function normalizeStepLists(text: string) {
   const prepared = text
     .replace(/(steps?:\s*)\n+([^\n*][^\n]*?)\n\*/gi, '$1\n* $2\n*')
     .replace(/([:：]\s*)\n+([^\n*][^\n]*?)\n\*/g, '$1\n* $2\n*')
+    .replace(/([:：.!?。！？])\s*(\d+\.\s+)/g, '$1\n$2')
+    .replace(/(\d+\.\s[^\n]+?)(?=\s+\d+\.\s)/g, '$1\n')
+    .replace(/(^|\n)(\*\*Step\s+\d+[^\n*]*\*\*)/gi, '$1* $2')
+    .replace(/([A-Za-z])\n(\d+\.\d+)/g, '$1 $2')
 
   const lines = prepared.split('\n')
   const normalizedLines: string[] = []
@@ -152,6 +169,12 @@ function normalizeStepLists(text: string) {
 
     if (!bulletMatch) {
       normalizedLines.push(line)
+      index += 1
+      continue
+    }
+
+    if (bulletMatch[1].trim().startsWith('**')) {
+      normalizedLines.push(`* ${bulletMatch[1].trim()}`)
       index += 1
       continue
     }
@@ -171,7 +194,42 @@ function normalizeStepLists(text: string) {
   return normalizedLines
     .join('\n')
     .replace(/([.!?。！？:：])\s*(\d+\.\s)/g, '$1\n$2')
-    .replace(/(\d+\.\s[^\n]+?)(?=\s+\d+\.\s)/g, '$1\n')
+    .replace(/(^|\n)(\d+\.\s)([^\n]+)(?=\n\d+\.\s|$)/g, (_full, prefix, marker, body) => {
+      return `${prefix}${marker}${body.trim()}`
+    })
+}
+
+function normalizeSectionBullets(text: string) {
+  const lines = text.split('\n')
+  const normalizedLines: string[] = []
+  const sectionPattern = /^(?:\*\s*)?(\*\*(Backend|Frontend|Services|Infrastructure)\*\*:?|\*\*(Backend|Frontend|Services|Infrastructure):\*\*|(Backend|Frontend|Services|Infrastructure):?)\s*(.*)$/
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+
+    if (!line) {
+      normalizedLines.push('')
+      continue
+    }
+
+    const match = line.match(sectionPattern)
+    if (!match) {
+      normalizedLines.push(rawLine)
+      continue
+    }
+
+    const rawLabel = match[1]
+    const trailing = (match[5] ?? '').trim().replace(/^:\s*/, '')
+    const labelText = rawLabel.replace(/^\*\*/, '').replace(/\*\*:$/, '').replace(/\*\*$/, '').replace(/:$/, '')
+    const normalizedLabel = `**${labelText}:**`
+
+    normalizedLines.push(`* ${normalizedLabel}`)
+    if (trailing) {
+      normalizedLines.push(`  ${trailing}`)
+    }
+  }
+
+  return normalizedLines.join('\n').replace(/\n{3,}/g, '\n\n')
 }
 
 function getCodeLanguage(className?: string) {
@@ -240,13 +298,14 @@ const SOURCE_NAME_PATTERN = new RegExp(
   'g',
 )
 
-function renderAssistantContent(
+function renderMarkdownContent(
   content: string,
   onLinkClick: () => void,
   onCopyCommand: (command: string) => void,
   copiedCommand: string | null,
+  normalizeContent = false,
 ) {
-  const formattedContent = formatAssistantContent(content)
+  const formattedContent = normalizeContent ? formatAssistantContent(content) : normalizeQuadBacktickFences(content)
   const linkedContent = formattedContent
     .split(/(```[\s\S]*?```)/g)
     .map((part) => {
@@ -323,6 +382,80 @@ function renderAssistantContent(
       {linkedContent}
     </ReactMarkdown>
   )
+}
+
+function renderChatAssistantContent(
+  content: string,
+  onLinkClick: () => void,
+  onCopyCommand: (command: string) => void,
+  copiedCommand: string | null,
+) {
+  return renderMarkdownContent(normalizeChatModeContent(content), onLinkClick, onCopyCommand, copiedCommand, false)
+}
+
+function renderAgentAssistantContent(
+  content: string,
+  onLinkClick: () => void,
+  onCopyCommand: (command: string) => void,
+  copiedCommand: string | null,
+) {
+  return renderMarkdownContent(content, onLinkClick, onCopyCommand, copiedCommand, false)
+}
+
+function formatArchitectureSections(content: string) {
+  const normalized = normalizeQuadBacktickFences(content).replace(/\r\n/g, '\n')
+  const sectionRegex = /(\*\*)?(Backend|Frontend|Services|Infrastructure)(\*\*)?:/g
+  const matches = [...normalized.matchAll(sectionRegex)]
+
+  if (matches.length < 2) {
+    return null
+  }
+
+  const intro = normalized.slice(0, matches[0].index ?? 0).replace(/\s*\d+\.\s*$/, '').trim()
+  const parts: string[] = []
+
+  if (intro) {
+    parts.push(intro)
+  }
+
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index]
+    const label = match[2]
+    const start = (match.index ?? 0) + match[0].length
+    const end = index + 1 < matches.length ? (matches[index + 1].index ?? normalized.length) : normalized.length
+    let body = normalized.slice(start, end).trim()
+
+    body = body
+      .replace(/(\d+)\.\s+(\d+)/g, '$1.$2')
+      .replace(/\s+(?=[*+-]\s)/g, '\n')
+      .replace(/\s*\d+\.\s*$/, '')
+      .replace(/([^\n*])\s+\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
+      .replace(/([^\n\s*])\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
+      .replace(/(^|\n)\*(?=[A-Za-z0-9])/g, '$1* ')
+      .replace(/(^|\n)\*\s*(?=[A-Za-z0-9])/g, '$1* ')
+      .replace(/([^\n])([A-Z][a-z]+ summary\b)/g, '$1\n\n$2')
+      .replace(/([^\n])((Please|Let)\b)/g, '$1\n\n$2')
+      .replace(/\n{3,}/g, '\n\n')
+
+    parts.push(`**${label}:**`)
+    if (body) {
+      parts.push(body)
+    }
+  }
+
+  return parts.join('\n\n')
+}
+
+function normalizeChatModeContent(content: string) {
+  const architectureFormatted = formatArchitectureSections(content)
+  if (architectureFormatted) {
+    return architectureFormatted
+  }
+
+  return formatAssistantContent(content)
+    .replace(/(^|\n)\d+\.\s*\n(?=\n*---\n\* \*\*(Backend|Frontend|Services|Infrastructure):\*\*)/g, '$1')
+    .replace(/(^|\n)---\n(?=\* \*\*(Backend|Frontend|Services|Infrastructure):\*\*)/g, '$1')
+    .replace(/(\* \*\*(Backend|Frontend|Services|Infrastructure):\*\*)\n\*\*\s+/g, '$1\n')
 }
 
 function estimateMessageBytes(message: ChatMessage) {
@@ -426,6 +559,14 @@ export default function ScriBotWidget() {
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, loading])
+
+  useEffect(() => {
+    if (!open) return
+
+    window.requestAnimationFrame(() => {
+      listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
+    })
+  }, [open])
 
   useEffect(() => {
     try {
@@ -700,7 +841,9 @@ export default function ScriBotWidget() {
                 <div className="scribot-message-role">{message.role === 'user' ? 'You' : 'ScriBot'}</div>
                 <div className="scribot-message-content">
                   {message.role === 'assistant'
-                    ? renderAssistantContent(message.content, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)
+                    ? message.mode === 'agent'
+                      ? renderAgentAssistantContent(message.content, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)
+                      : renderChatAssistantContent(message.content, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)
                     : message.content}
                 </div>
 
@@ -742,10 +885,14 @@ export default function ScriBotWidget() {
                               {step.observation.length > 240 ? (
                                 <details className="scribot-step-observation-details">
                                   <summary>Show observation</summary>
-                                  <div className="scribot-step-observation">{step.observation}</div>
+                                  <div className="scribot-step-observation">
+                                    {renderMarkdownContent(step.observation, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)}
+                                  </div>
                                 </details>
                               ) : (
-                                <div className="scribot-step-observation">{step.observation}</div>
+                                <div className="scribot-step-observation">
+                                  {renderMarkdownContent(step.observation, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)}
+                                </div>
                               )}
                             </div>
                           ) : null}

@@ -38,6 +38,19 @@ class RAGService:
         "whisperlive": ["atts", "transcription", "csp", "websocket"],
     }
 
+    def _detect_response_language(self, question: str) -> str:
+        if re.search(r"[\u4e00-\u9fff]", question):
+            return "Chinese"
+
+        dutch_markers = {
+            "de", "het", "een", "wat", "hoe", "vergelijk", "vereisten", "functionele", "niet-functionele",
+        }
+        tokens = re.findall(r"[a-zA-Z]+", question.lower())
+        if any(token in dutch_markers for token in tokens):
+            return "Dutch"
+
+        return "English"
+
     async def retrieve(
         self,
         query: str,
@@ -146,16 +159,19 @@ class RAGService:
         """
         Build the final prompt string for the selected LLM provider
         """
+        response_language = self._detect_response_language(question)
+
         return f"""Use the following KDAI documentation context to answer the user's question.
 If the answer is not supported by the context, say you are not sure based on the documentation.
+Answer in {response_language} only.
+Do not switch to Dutch unless the user's question is in Dutch.
+Do not copy the language of the documentation context if it differs from the user's question.
 
 Context:
 {context}
 
 Question:
 {question}
-
-Answer in the same language as the user's question.
 """
 
     async def query(self, question: str, top_k: int = None) -> dict:
