@@ -250,9 +250,9 @@ curl -X POST http://localhost:8000/api/agent/run \
 5. **Prompt Engineering** - Structured output format for reliable parsing
 6. **Async Python** - httpx + asyncio for concurrent embedding requests
 
-## Related: KDAI Project
+## Related: KDAI2 Project
 
-This chatbot is built for [KDAI](https://github.com/example/kdai) documentation. My contributions to KDAI include:
+This chatbot is built for [KDAI2](https://github.com/W-KDAI/kdai2) documentation. My contributions to KDAI2 include:
 
 - **Built question extraction feature end-to-end** - Backend buffering system, LLM integration, Vue.js frontend
 - **Developed context-aware UI** - Shows extracted questions with source transcript references and click-to-navigate
