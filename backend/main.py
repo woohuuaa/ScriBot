@@ -176,8 +176,7 @@ async def run_agent(request: Request):
     try:
         result = await agent.run(message)
     except httpx.HTTPStatusError as exc:
-        detail_bytes = await exc.response.aread()
-        detail = detail_bytes.decode("utf-8", errors="replace").strip() or str(exc)
+        detail = str(exc)
         raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

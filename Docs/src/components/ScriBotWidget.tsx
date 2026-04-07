@@ -507,7 +507,7 @@ function formatRequestError(error: unknown) {
   const message = error instanceof Error ? error.message : 'Unexpected error'
 
   if (message.includes('429') || /Too Many Requests/i.test(message)) {
-    return 'Groq rate limit reached. Please wait a moment and retry, or switch to Ollama.'
+    return 'Groq rate limit reached. Please retry or switch to Ollama.'
   }
 
   if (/Failed to fetch/i.test(message)) {
