@@ -1,5 +1,5 @@
 # FastAPI application entry point
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import settings, LLMProvider
@@ -15,6 +15,7 @@ from services.rag import rag_service
 from services.llm_providers.ollama import OllamaProvider
 from services.llm_providers.groq import GroqProvider
 from services.llm_providers.openai import OpenAIProvider
+from scripts.index_docs import index_documents
 # ─────────────────────────────────────────────────────────────
 # Initialize FastAPI app
 # ─────────────────────────────────────────────────────────────
@@ -169,6 +170,26 @@ async def run_agent(request: Request):
         "steps": result["steps"],
         "sources": result["sources"],
         "provider": provider_name or settings.default_provider.value,
+    }
+
+
+@app.post("/api/admin/index-docs")
+async def trigger_index_docs(request: Request):
+    """Trigger document indexing for hosted environments without shell access."""
+    if not settings.admin_token:
+        raise HTTPException(status_code=404, detail="Indexing endpoint is disabled")
+
+    provided_token = request.headers.get("x-admin-token", "")
+    if provided_token != settings.admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    recreate = bool(body.get("recreate", False))
+
+    await index_documents(recreate=recreate)
+    return {
+        "status": "ok",
+        "recreate": recreate,
     }
 
 # ─────────────────────────────────────────────────────────────

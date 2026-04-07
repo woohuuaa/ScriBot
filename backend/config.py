@@ -108,6 +108,9 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
     # ─────────────────────────────────────────────────────────
     enable_monitoring: bool = True
     # Enable/disable monitoring
+
+    # Admin operations
+    admin_token: str = ""
     
     # ─────────────────────────────────────────────────────────
     # Pydantic config
