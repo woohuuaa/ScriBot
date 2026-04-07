@@ -1,6 +1,7 @@
 # FastAPI application entry point
 import asyncio
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -172,7 +173,13 @@ async def run_agent(request: Request):
         max_steps=10,
     )
 
-    result = await agent.run(message)
+    try:
+        result = await agent.run(message)
+    except httpx.HTTPStatusError as exc:
+        detail = exc.response.text.strip() or str(exc)
+        raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return {
         "answer": result["answer"],

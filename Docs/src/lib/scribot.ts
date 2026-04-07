@@ -95,7 +95,15 @@ export async function runAgent(
   })
 
   if (!response.ok) {
-    throw new Error(`Agent request failed: ${response.status}`)
+    let detail = ''
+    try {
+      const data = await response.json()
+      detail = typeof data?.detail === 'string' ? data.detail : ''
+    } catch {
+      detail = await response.text()
+    }
+
+    throw new Error(detail || `Agent request failed: ${response.status}`)
   }
 
   return response.json()
