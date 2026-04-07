@@ -1,5 +1,5 @@
 # FastAPI application entry point
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import settings, LLMProvider
@@ -24,6 +24,11 @@ app = FastAPI(
     description="AI-powered documentation chatbot with RAG",
     version="1.0.0"
 )
+
+indexing_status = {
+    "state": "idle",
+    "last_error": None,
+}
 
 app.add_middleware(
     CORSMiddleware,
@@ -174,7 +179,7 @@ async def run_agent(request: Request):
 
 
 @app.post("/api/admin/index-docs")
-async def trigger_index_docs(request: Request):
+async def trigger_index_docs(request: Request, background_tasks: BackgroundTasks):
     """Trigger document indexing for hosted environments without shell access."""
     if not settings.admin_token:
         raise HTTPException(status_code=404, detail="Indexing endpoint is disabled")
@@ -186,10 +191,40 @@ async def trigger_index_docs(request: Request):
     body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
     recreate = bool(body.get("recreate", False))
 
-    await index_documents(recreate=recreate)
+    if indexing_status["state"] == "running":
+        raise HTTPException(status_code=409, detail="Indexing is already running")
+
+    indexing_status["state"] = "running"
+    indexing_status["last_error"] = None
+
+    async def run_indexing_task():
+        try:
+            await index_documents(recreate=recreate)
+            indexing_status["state"] = "completed"
+        except Exception as exc:
+            indexing_status["state"] = "failed"
+            indexing_status["last_error"] = str(exc)
+
+    background_tasks.add_task(run_indexing_task)
+
     return {
-        "status": "ok",
+        "status": "accepted",
         "recreate": recreate,
+    }
+
+
+@app.get("/api/admin/index-docs/status")
+async def index_docs_status(request: Request):
+    if not settings.admin_token:
+        raise HTTPException(status_code=404, detail="Indexing endpoint is disabled")
+
+    provided_token = request.headers.get("x-admin-token", "")
+    if provided_token != settings.admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    return {
+        "status": indexing_status["state"],
+        "last_error": indexing_status["last_error"],
     }
 
 # ─────────────────────────────────────────────────────────────
