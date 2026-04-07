@@ -34,10 +34,17 @@ class QdrantService:
         
         Connection: http://qdrant:6333 (Docker network)
         """
-        self.client = QdrantClient(
-            host=settings.qdrant_host,  # "qdrant" (Docker service name)
-            port=settings.qdrant_port,  # 6333
-        )
+        if settings.qdrant_url:
+            self.client = QdrantClient(
+                url=settings.qdrant_url,
+                check_compatibility=False,
+            )
+        else:
+            self.client = QdrantClient(
+                host=settings.qdrant_host,  # "qdrant" (Docker service name)
+                port=settings.qdrant_port,  # 6333
+                check_compatibility=False,
+            )
         self.collection_name = settings.qdrant_collection   # "kdai_docs"
         self.dimension = settings.embedding_dimension       # 768
     

@@ -79,6 +79,7 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
     openai_model: str = "gpt-4o-mini"  # Cost-effective choice
     
     # Qdrant Vector Database
+    qdrant_url: str = ""
     qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
     qdrant_collection: str = "kdai_docs"
