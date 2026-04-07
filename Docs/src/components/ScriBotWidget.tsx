@@ -503,6 +503,26 @@ function formatProviderLabel(provider: ScribotProvider, modelName?: string) {
   return 'Groq (Recommended)'
 }
 
+function pickUsableProvider(
+  current: ScribotProvider,
+  availability: Partial<Record<ScribotProvider, boolean>>,
+  preferred?: string,
+) {
+  const preferredProvider = preferred === 'ollama' || preferred === 'groq' ? preferred : null
+
+  if (availability[current] !== false) {
+    return current
+  }
+
+  if (preferredProvider && availability[preferredProvider] !== false) {
+    return preferredProvider
+  }
+
+  if (availability.groq !== false) return 'groq'
+  if (availability.ollama !== false) return 'ollama'
+  return current
+}
+
 function formatRequestError(error: unknown, provider?: ScribotProvider) {
   const message = error instanceof Error ? error.message : 'Unexpected error'
 
@@ -653,6 +673,7 @@ export default function ScriBotWidget() {
         }
         setProviderModels(nextModels)
         setProviderAvailability(nextAvailability)
+        setProvider((current) => pickUsableProvider(current, nextAvailability, info.default_provider))
       } catch {
         // Keep default labels when provider metadata is unavailable.
       }
