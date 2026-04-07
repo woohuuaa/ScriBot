@@ -1,7 +1,12 @@
+import os
 import httpx
 import asyncio
 from typing import Callable, Optional
 from config import settings
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 from fastembed import TextEmbedding
 # ─────────────────────────────────────────────────────────────
 # Embedder Service
@@ -24,7 +29,13 @@ class Embedder:
 
     def _get_fastembed_model(self) -> TextEmbedding:
         if self._fastembed_model is None:
-            self._fastembed_model = TextEmbedding(model_name=settings.fastembed_model)
+            try:
+                self._fastembed_model = TextEmbedding(
+                    model_name=settings.fastembed_model,
+                    threads=settings.fastembed_threads,
+                )
+            except TypeError:
+                self._fastembed_model = TextEmbedding(model_name=settings.fastembed_model)
         return self._fastembed_model
 
     async def _embed_with_fastembed(self, texts: list[str]) -> list[list[float]]:

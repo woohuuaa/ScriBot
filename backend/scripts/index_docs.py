@@ -9,6 +9,7 @@ Usage:
 
 import asyncio      # For running async embedding generation
 import argparse     # For command-line argument parsing
+import gc           # For reducing peak memory during hosted indexing
 import uuid         # For generating Qdrant-compatible UUIDs from chunk IDs
 import time         # For timing embedding generation
 from pathlib import Path
@@ -21,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from services.chunker import chunker
 from services.embedder import embedder
 from services.qdrant_client import qdrant_service
+from config import settings
 
 
 # Path to KDAI documentation (in Docker container, this is mounted at /app/Docs)
@@ -60,12 +62,8 @@ async def index_documents(recreate: bool = False):
     # Step 3: Generate embeddings
     print(f"\n[3/4] Generating embeddings for {len(chunks)} chunks...")
     
-    # Build richer text for embedding so retrieval can use title/source clues.
-    texts = [
-        f"Source: {chunk.source}\nTitle: {chunk.title}\nContent: {chunk.content}"
-        for chunk in chunks
-    ]
-    
+    batch_size = max(1, settings.fastembed_batch_size if settings.embedding_provider.lower() == "fastembed" else 32)
+
     # Batch embed with progress bar and timing
     start_time = time.time()
     
@@ -76,36 +74,45 @@ async def index_documents(recreate: bool = False):
     def update_progress():
         pbar.update(1)
     
-    vectors = await embedder.embed_batch(
-        texts, 
-        max_concurrent=5,
-        on_progress=update_progress
-    )
+    processed_chunks = 0
+    for start in range(0, len(chunks), batch_size):
+        batch_chunks = chunks[start : start + batch_size]
+        texts = [
+            f"Source: {chunk.source}\nTitle: {chunk.title}\nContent: {chunk.content}"
+            for chunk in batch_chunks
+        ]
+
+        vectors = await embedder.embed_batch(
+            texts,
+            max_concurrent=5,
+            on_progress=update_progress,
+        )
+
+        ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk.id)) for chunk in batch_chunks]
+        payloads = [
+            {
+                "source": chunk.source,
+                "title": chunk.title,
+                "content": chunk.content,
+            }
+            for chunk in batch_chunks
+        ]
+
+        qdrant_service.upsert_points(ids, vectors, payloads)
+        processed_chunks += len(batch_chunks)
+
+        del texts, vectors, ids, payloads, batch_chunks
+        gc.collect()
     
     pbar.close()
     elapsed_time = time.time() - start_time
     
     # Calculate and display timing statistics
     avg_time_per_chunk = elapsed_time / len(chunks) if chunks else 0
-    print(f"      Generated {len(vectors)} embeddings in {elapsed_time:.2f}s ({avg_time_per_chunk:.3f}s/chunk)")
-    
+    print(f"      Generated {processed_chunks} embeddings in {elapsed_time:.2f}s ({avg_time_per_chunk:.3f}s/chunk)")
+
     # Step 4: Upsert into Qdrant
     print("\n[4/4] Upserting into Qdrant...")
-    
-    # Convert string IDs to UUIDs (Qdrant only accepts unsigned int or UUID, not strings)
-    # uuid5 is deterministic: same chunk.id always produces the same UUID
-    ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk.id)) for chunk in chunks]
-    
-    payloads = [
-        {
-            "source": chunk.source,
-            "title": chunk.title,
-            "content": chunk.content,
-        }
-        for chunk in chunks
-    ]
-    
-    qdrant_service.upsert_points(ids, vectors, payloads)
     
     # Done!
     print("\n" + "=" * 60)

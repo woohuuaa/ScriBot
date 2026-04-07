@@ -69,7 +69,8 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
 
     # FastEmbed (CPU-friendly fallback for hosted environments like Railway)
     fastembed_model: str = "BAAI/bge-small-en-v1.5"
-    fastembed_batch_size: int = 16
+    fastembed_batch_size: int = 4
+    fastembed_threads: int = 1
     
     # Groq (Backup 1)
     # NOTE: GROQ_* env vars override these defaults.
