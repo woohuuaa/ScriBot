@@ -8,7 +8,7 @@ ScriBot is a **documentation assistant** that uses:
 - **RAG (Retrieval-Augmented Generation)** to search and cite 30+ technical documents
 - **ReAct Agent Architecture** for multi-step reasoning
 - **5 Modular Tools** for knowledge base management (search, list, info, create, delete)
-- **Vector Embeddings** (Qdrant + nomic-embed-text) for semantic search
+- **Vector Embeddings** with environment-specific providers (Ollama locally, FastEmbed for hosted demos)
 - **Multiple LLM Providers** (Ollama/Groq/OpenAI)
 - **Astro + Starlight widget UI** with floating launcher, streaming chat, agent steps, and source links
 - **Session-persistent widget state** so source navigation keeps the conversation open
@@ -66,6 +66,8 @@ Agent:
 │                                                                 │
 │  POST /api/chat        ← RAG-enhanced chat                      │
 │  POST /api/agent/run   ← ReAct Agent with 5 tools               │
+│  POST /api/admin/index-docs      ← Trigger hosted indexing      │
+│  GET  /api/admin/index-docs/status ← Check indexing status      │
 │  GET  /api/providers   ← Provider/model metadata                │
 │  GET  /api/health      ← Health check                           │
 └──────────────────────────────────┬──────────────────────────────┘
@@ -101,7 +103,7 @@ ScriBot/
 │   ├── .env                        # Backend-specific local settings
 │   │
 │   ├── services/
-│   │   ├── embedder.py             # Ollama embedding (nomic-embed-text)
+│   │   ├── embedder.py             # Embedding providers (Ollama / FastEmbed)
 │   │   ├── qdrant_client.py        # Vector DB operations
 │   │   ├── chunker.py              # MDX parsing + text chunking
 │   │   ├── rag.py                  # RAG pipeline (retrieve + context)
@@ -126,6 +128,7 @@ ScriBot/
 │   └── scripts/
 │       └── index_docs.py           # Index docs into Qdrant
 │
+├── Dockerfile.railway              # Hosted backend image (backend + Docs)
 ├── Docs/
 │   ├── src/components/ScriBotWidget.tsx   # Floating chatbot widget
 │   ├── src/lib/scribot.ts                 # Frontend API client
@@ -142,7 +145,7 @@ ScriBot/
 │                                                                 │
 │   MDX Files → Clean (remove frontmatter, imports, mermaid)      │
 │            → Chunk (by ## headings)                             │
-│            → Embed (nomic-embed-text → 768-dim vectors)         │
+│            → Embed (Ollama locally / FastEmbed on Railway)      │
 │            → Store (Qdrant with payload: source, title, content)│
 └─────────────────────────────────────────────────────────────────┘
 
@@ -155,6 +158,8 @@ ScriBot/
 │   Returns: Answer + Source Citations                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+Local indexing uses `nomic-embed-text` through Ollama (768-dim vectors). Hosted demos on Railway use FastEmbed (`BAAI/bge-small-en-v1.5`, 384-dim vectors). If you change embedding provider or vector dimension, re-index the collection.
 
 ## ReAct Agent Architecture
 
@@ -217,18 +222,30 @@ curl -X POST http://localhost:8000/api/agent/run \
 - Docs widget is mounted into the Astro + Starlight site
 - Chat mode supports SSE streaming
 - Agent mode is the default mode and shows steps and source links
-- Provider labels expose the active model name via `/api/providers`
+- Provider labels expose active model names and availability via `/api/providers`
 - Source links stay in-page and preserve widget state via `sessionStorage`
 - Ollama is mainly for local development, while Groq is recommended for faster demos
+- Hosted indexing can be triggered remotely with `POST /api/admin/index-docs`
+- Railway demo deployment is working with `Groq + FastEmbed + Qdrant`
 
 ## Deployment Recommendation
 
+### Local Development
+
+- Use `docker compose up -d`
+- Keep `EMBEDDING_PROVIDER=ollama`
+- Keep `QDRANT_HOST=qdrant`
+- Ollama is suitable for local development and fallback testing
+
+### Hosted Demo (Railway)
+
 - **Frontend:** deploy `Docs/` to Vercel
-- **Backend provider for demos:** prefer Groq for faster and more reliable live responses
-- **Backend hosting:** Railway is the fastest short-term demo path; EC2 is better for longer-lived infrastructure and full control
-- **Ollama:** use mainly for local development, not public demos, unless you control the machine and accept slower first-token latency
-- Set `PUBLIC_SCRIBOT_API_BASE` in the Docs frontend to point at the deployed backend URL
-- Ensure `Docs/src/content/docs` is available to the backend before running `python scripts/index_docs.py`
+- **Backend provider:** prefer Groq for faster and more reliable live responses
+- **Embedding provider:** use FastEmbed on Railway instead of Ollama
+- **Backend image:** use `Dockerfile.railway` so both `backend/` and `Docs/` are available in the container
+- Set `PUBLIC_SCRIBOT_API_BASE` in the Docs frontend to the deployed backend URL
+- Trigger indexing remotely with `POST /api/admin/index-docs` and monitor it via `GET /api/admin/index-docs/status`
+- Ollama should be treated as local-only unless you explicitly host a reachable Ollama server and set `OLLAMA_BASE_URL`
 
 ## Tech Stack
 
@@ -237,9 +254,50 @@ curl -X POST http://localhost:8000/api/agent/run \
 | **Frontend** | Astro + Starlight + React | Documentation site and floating widget UI |
 | **Backend** | FastAPI (Python) | Async API server |
 | **Vector DB** | Qdrant | Semantic search with cosine similarity |
-| **Embeddings** | Ollama (nomic-embed-text) | 768-dim text embeddings |
+| **Embeddings** | Ollama / FastEmbed | Local and hosted embedding generation |
 | **LLM** | Groq / Ollama / OpenAI | Response generation |
 | **Container** | Docker Compose | Multi-service orchestration |
+| **Hosted Demo Deploy** | Railway | FastAPI + Qdrant demo deployment |
+
+## Environment Profiles
+
+### Local
+
+```env
+DEFAULT_PROVIDER=groq
+EMBEDDING_PROVIDER=ollama
+QDRANT_HOST=qdrant
+QDRANT_PORT=6333
+QDRANT_COLLECTION=kdai_docs
+```
+
+### Railway
+
+```env
+DEFAULT_PROVIDER=groq
+EMBEDDING_PROVIDER=fastembed
+FASTEMBED_MODEL=BAAI/bge-small-en-v1.5
+FASTEMBED_BATCH_SIZE=4
+FASTEMBED_THREADS=1
+EMBEDDING_DIMENSION=384
+QDRANT_URL=http://<your-qdrant-private-host>:6333
+QDRANT_COLLECTION=kdai_docs
+ADMIN_TOKEN=<your-admin-token>
+```
+
+## Hosted Indexing
+
+When running on Railway without shell access, use the admin indexing endpoints:
+
+```bash
+curl -X POST https://<your-backend>/api/admin/index-docs \
+  -H "Content-Type: application/json" \
+  -H "x-admin-token: <your-admin-token>" \
+  -d '{"recreate": true}'
+
+curl https://<your-backend>/api/admin/index-docs/status \
+  -H "x-admin-token: <your-admin-token>"
+```
 
 ## What I Learned
 
