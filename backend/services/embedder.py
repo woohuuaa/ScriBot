@@ -30,8 +30,14 @@ class Embedder:
     async def _embed_with_fastembed(self, texts: list[str]) -> list[list[float]]:
         model = self._get_fastembed_model()
 
+        batch_size = max(1, settings.fastembed_batch_size)
+
         def run_embeddings() -> list[list[float]]:
-            return [vector.tolist() for vector in model.embed(texts)]
+            vectors: list[list[float]] = []
+            for start in range(0, len(texts), batch_size):
+                batch = texts[start : start + batch_size]
+                vectors.extend(vector.tolist() for vector in model.embed(batch))
+            return vectors
 
         return await asyncio.to_thread(run_embeddings)
     
