@@ -1,5 +1,7 @@
 # FastAPI application entry point
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+import asyncio
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import settings, LLMProvider
@@ -29,6 +31,7 @@ indexing_status = {
     "state": "idle",
     "last_error": None,
 }
+indexing_task: asyncio.Task | None = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -179,8 +182,10 @@ async def run_agent(request: Request):
 
 
 @app.post("/api/admin/index-docs")
-async def trigger_index_docs(request: Request, background_tasks: BackgroundTasks):
+async def trigger_index_docs(request: Request):
     """Trigger document indexing for hosted environments without shell access."""
+    global indexing_task
+
     if not settings.admin_token:
         raise HTTPException(status_code=404, detail="Indexing endpoint is disabled")
 
@@ -205,7 +210,7 @@ async def trigger_index_docs(request: Request, background_tasks: BackgroundTasks
             indexing_status["state"] = "failed"
             indexing_status["last_error"] = str(exc)
 
-    background_tasks.add_task(run_indexing_task)
+    indexing_task = asyncio.create_task(run_indexing_task())
 
     return {
         "status": "accepted",
