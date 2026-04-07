@@ -157,7 +157,7 @@
 
 .scribot-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1.16fr) minmax(0, 0.84fr) auto;
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 0.8fr) auto;
   gap: 0.4rem;
   max-height: 55px;
   padding: 0.3rem 0.65rem;
@@ -332,7 +332,7 @@
   padding-left: 1.1rem;
 }
 
-.scribot-message-content li + li {
+.scribot-message-content li+li {
   margin-top: 0.6rem;
 }
 
