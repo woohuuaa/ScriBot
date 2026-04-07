@@ -159,7 +159,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(0, 0.8fr) auto;
   gap: 0.4rem;
-  max-height: 55px;
+  max-height: 3rem;
   padding: 0.3rem 0.65rem;
   border-bottom: 1px solid var(--sl-color-hairline-shade);
   align-items: center;
