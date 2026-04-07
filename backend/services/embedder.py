@@ -2,6 +2,7 @@ import httpx
 import asyncio
 from typing import Callable, Optional
 from config import settings
+from fastembed import TextEmbedding
 # ─────────────────────────────────────────────────────────────
 # Embedder Service
 # ─────────────────────────────────────────────────────────────
@@ -18,6 +19,21 @@ class Embedder:
     def __init__(self):
         self.base_url = settings.ollama_base_url    # base_url = "http://ollama:11434"
         self.model = settings.ollama_embedding_model    # model = "nomic-embed-text"
+        self.provider = settings.embedding_provider.lower()
+        self._fastembed_model: TextEmbedding | None = None
+
+    def _get_fastembed_model(self) -> TextEmbedding:
+        if self._fastembed_model is None:
+            self._fastembed_model = TextEmbedding(model_name=settings.fastembed_model)
+        return self._fastembed_model
+
+    async def _embed_with_fastembed(self, texts: list[str]) -> list[list[float]]:
+        model = self._get_fastembed_model()
+
+        def run_embeddings() -> list[list[float]]:
+            return [vector.tolist() for vector in model.embed(texts)]
+
+        return await asyncio.to_thread(run_embeddings)
     
     async def embed(self, text: str) -> list[float]:
         """
@@ -33,6 +49,10 @@ class Embedder:
             vector = await embedder.embed("What is KDAI?")
             len(vector)  # 768
         """
+        if self.provider == "fastembed":
+            vectors = await self._embed_with_fastembed([text])
+            return vectors[0]
+
         url = f"{self.base_url}/api/embeddings"
         
         # Send a POST request to the Ollama embeddings API using httpx.
@@ -79,6 +99,13 @@ class Embedder:
             len(vectors)     # 2
             len(vectors[0])  # 768
         """
+        if self.provider == "fastembed":
+            vectors = await self._embed_with_fastembed(texts)
+            if on_progress:
+                for _ in texts:
+                    on_progress()
+            return vectors
+
         # Example: semaphore = asyncio.Semaphore(5)
         # async with semaphore limits concurrent tasks.
         semaphore = asyncio.Semaphore(max_concurrent)

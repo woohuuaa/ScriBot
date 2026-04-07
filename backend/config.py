@@ -30,6 +30,7 @@ class Settings(BaseSettings):
    
     # LLM Settings
     default_provider: LLMProvider = LLMProvider.OLLAMA  # Default: use local Ollama
+    embedding_provider: str = "ollama"
 
     # ─────────────────────────────────────────────────────────
     # System Prompt
@@ -65,6 +66,9 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
     ollama_keep_alive: str = "30m"
     ollama_num_ctx: int = 2048
     ollama_num_predict: int = 512
+
+    # FastEmbed (CPU-friendly fallback for hosted environments like Railway)
+    fastembed_model: str = "BAAI/bge-small-en-v1.5"
     
     # Groq (Backup 1)
     # NOTE: GROQ_* env vars override these defaults.
