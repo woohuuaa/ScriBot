@@ -503,6 +503,20 @@ function formatProviderLabel(provider: ScribotProvider, modelName?: string) {
   return 'Groq'
 }
 
+function formatRequestError(error: unknown) {
+  const message = error instanceof Error ? error.message : 'Unexpected error'
+
+  if (message.includes('429') || /Too Many Requests/i.test(message)) {
+    return 'Groq rate limit reached. Please wait a moment and retry, or switch to Ollama.'
+  }
+
+  if (/Failed to fetch/i.test(message)) {
+    return 'Unable to reach the backend. Please check the network connection or backend deployment status.'
+  }
+
+  return message
+}
+
 export default function ScriBotWidget() {
   // Widget shell state.
   const [mounted, setMounted] = useState(false)
@@ -711,7 +725,7 @@ export default function ScriBotWidget() {
         )
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unexpected error')
+      setError(formatRequestError(err))
     } finally {
       setLoading(false)
     }
