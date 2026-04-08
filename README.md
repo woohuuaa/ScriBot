@@ -203,7 +203,7 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 - Deployed frontend shows a clear Ollama deployment hint instead of a raw DNS error
 - Source links stay in-page and preserve widget state via `sessionStorage`
 - Ollama is mainly for local development, while Groq is recommended for faster demos
-- Hosted indexing can be triggered remotely with `POST /api/admin/index-docs`
+- Hosted indexing can be triggered remotely with `POST /api/admin/index-docs` and monitored via `GET /api/admin/index-docs/status`
 - Railway demo deployment is working with `Groq + FastEmbed + Qdrant`
 
 ## Deployment Recommendation
@@ -232,7 +232,7 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 | **Frontend** | Astro + Starlight + React | Documentation site and floating widget UI |
 | **Backend** | FastAPI (Python) | Async API server |
 | **Vector DB** | Qdrant | Semantic search with cosine similarity |
-| **Embeddings** | Ollama / FastEmbed | Local and hosted embedding generation |
+| **Embeddings** | Ollama / FastEmbed | Ollama for local development, FastEmbed for hosted demos |
 | **LLM** | Groq / Ollama / OpenAI | Response generation |
 | **Container** | Docker Compose | Multi-service orchestration |
 | **Hosted Demo Deploy** | Railway | FastAPI + Qdrant demo deployment |
@@ -244,6 +244,7 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 ```env
 DEFAULT_PROVIDER=groq
 EMBEDDING_PROVIDER=ollama
+GROQ_API_KEY=<your-groq-api-key>
 OLLAMA_MODEL=llama3.1:8b
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 OLLAMA_KEEP_ALIVE=30m
@@ -269,7 +270,7 @@ QDRANT_COLLECTION=kdai_docs
 ADMIN_TOKEN=<your-admin-token>
 ```
 
-`OLLAMA_BASE_URL` is optional on Railway and should only be set if you explicitly host a reachable Ollama server. Otherwise, treat Ollama as local-only.
+`OLLAMA_BASE_URL` is optional on Railway and should only be set if you explicitly host a reachable Ollama server. Otherwise, treat Ollama as local-only. In deployed environments, the frontend uses `/api/providers` to surface provider availability and prefers a usable provider by default.
 
 ## Hosted Indexing
 

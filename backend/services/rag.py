@@ -38,9 +38,45 @@ class RAGService:
         "whisperlive": ["atts", "transcription", "csp", "websocket"],
     }
 
+    TRADITIONAL_MARKERS = set("體繁請麼這個為與還說網應檔點問題舉例變時後開關處理讓會嗎實際網站" )
+    SIMPLIFIED_MARKERS = set("体繁请么这个为与还说网应档点问题举例变时后开关处理让会吗实际网站" )
+
+    EXPLICIT_LANGUAGE_PATTERNS = [
+        (r"(?:please|pls)\s+(?:answer|respond|reply)\s+in\s+english", "English"),
+        (r"(?:please|pls)\s+(?:answer|respond|reply)\s+in\s+dutch", "Dutch"),
+        (r"請\s*用\s*英文\s*回答", "English"),
+        (r"請\s*用\s*荷蘭文\s*回答", "Dutch"),
+        (r"請\s*用\s*繁體中文\s*回答", "Traditional Chinese"),
+        (r"請\s*用\s*简体中文\s*回答", "Simplified Chinese"),
+        (r"请\s*用\s*英文\s*回答", "English"),
+        (r"请\s*用\s*荷兰文\s*回答", "Dutch"),
+        (r"请\s*用\s*繁體中文\s*回答", "Traditional Chinese"),
+        (r"请\s*用\s*简体中文\s*回答", "Simplified Chinese"),
+    ]
+
+    def _detect_explicit_language_request(self, question: str) -> str | None:
+        lowered = question.lower()
+        for pattern, language in self.EXPLICIT_LANGUAGE_PATTERNS:
+            if re.search(pattern, lowered, re.IGNORECASE):
+                return language
+        return None
+
+    def _detect_chinese_variant(self, question: str) -> str:
+        traditional_score = sum(1 for char in question if char in self.TRADITIONAL_MARKERS)
+        simplified_score = sum(1 for char in question if char in self.SIMPLIFIED_MARKERS)
+
+        if simplified_score > traditional_score:
+            return "Simplified Chinese"
+
+        return "Traditional Chinese"
+
     def _detect_response_language(self, question: str) -> str:
+        explicit_language = self._detect_explicit_language_request(question)
+        if explicit_language:
+            return explicit_language
+
         if re.search(r"[\u4e00-\u9fff]", question):
-            return "Chinese"
+            return self._detect_chinese_variant(question)
 
         dutch_markers = {
             "de", "het", "een", "wat", "hoe", "vergelijk", "vereisten", "functionele", "niet-functionele",
@@ -159,11 +195,19 @@ class RAGService:
         """
         Build the final prompt string for the selected LLM provider
         """
+        explicit_language = self._detect_explicit_language_request(question)
         response_language = self._detect_response_language(question)
+
+        language_instruction = f"Answer in {response_language} only."
+        if explicit_language:
+            language_instruction = f"The user explicitly requested {explicit_language}. Answer in {explicit_language} only."
 
         return f"""Use the following KDAI documentation context to answer the user's question.
 If the answer is not supported by the context, say you are not sure based on the documentation.
-Answer in {response_language} only.
+{language_instruction}
+If the question uses Traditional Chinese, keep the answer in Traditional Chinese.
+If the question uses Simplified Chinese, keep the answer in Simplified Chinese.
+If the user explicitly requests English, Dutch, Traditional Chinese, or Simplified Chinese, that instruction overrides the default language behavior.
 Do not switch to Dutch unless the user's question is in Dutch.
 Do not copy the language of the documentation context if it differs from the user's question.
 
