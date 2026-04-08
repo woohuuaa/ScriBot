@@ -70,15 +70,15 @@ Agent:
 │  GET  /api/admin/index-docs/status ← Check indexing status      │
 │  GET  /api/providers   ← Provider/model metadata                │
 │  GET  /api/health      ← Health check                           │
-└──────────────────────────────────┬──────────────────────────────┘
-                                   │
-        ┌──────────────────────────┼──────────────────────────────┐
-        ▼                          ▼                              ▼
-┌───────────────┐          ┌───────────────┐              ┌───────────────┐
-│    Qdrant     │          │    Ollama     │              │  Groq/OpenAI  │
-│  Vector DB    │          │  Local LLM    │              │  Cloud LLMs   │
-│  + Search     │          │ + Embeddings  │              │               │
-└───────────────┘          └───────────────┘              └───────────────┘
+└────────────────────────────────┬────────────────────────────────┘
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        ▼                        ▼                        ▼
+┌───────────────┐        ┌───────────────┐        ┌───────────────┐
+│    Qdrant     │        │    Ollama     │        │  Groq/OpenAI  │
+│  Vector DB    │        │  Local LLM    │        │  Cloud LLMs   │
+│  + Search     │        │ + Embeddings  │        │               │
+└───────────────┘        └───────────────┘        └───────────────┘
 ```
 
 ## Key Technical Decisions
