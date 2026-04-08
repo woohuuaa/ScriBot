@@ -54,10 +54,10 @@ Agent:
 ┌─────────────────────────────────────────────────────────────────┐
 │                  Astro + Starlight Docs Frontend                │
 │                                                                 │
-│  Floating ScriBot widget                                         │
-│  - Chat mode (SSE streaming)                                     │
-│  - Agent mode (default, with steps + sources)                    │
-│  - Provider switcher (Ollama / Groq)                             │
+│  Floating ScriBot widget                                        │
+│  - Chat mode (SSE streaming)                                    │
+│  - Agent mode (default, with steps + sources)                   │
+│  - Provider switcher (Ollama / Groq)                            │
 └──────────────────────────────────┬──────────────────────────────┘
                                    │
                                    ▼
