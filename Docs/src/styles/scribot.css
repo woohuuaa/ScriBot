@@ -72,7 +72,7 @@
   width: min(420px, calc(100vw - 2rem));
   height: min(70vh, 720px);
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   border: 1px solid var(--sl-color-hairline-shade);
   border-radius: 18px;
   overflow: hidden;
@@ -157,9 +157,9 @@
 
 .scribot-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(0, 0.8fr) auto;
+  grid-template-columns: minmax(0, 1fr) max-content auto;
   gap: 0.4rem;
-  max-height: 3rem;
+  max-height: min(3rem, 14vw);
   padding: 0.3rem 0.65rem;
   border-bottom: 1px solid var(--sl-color-hairline-shade);
   align-items: center;
@@ -656,8 +656,9 @@
 
   .scribot-toolbar {
     width: 100%;
-    grid-template-columns: 1fr;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) max-content auto;
+    align-items: center;
+    max-height: none;
   }
 
   .scribot-input-row {

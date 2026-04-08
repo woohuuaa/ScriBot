@@ -83,14 +83,10 @@ Agent:
 
 ## Key Technical Decisions
 
-| Decision | Why |
-|----------|-----|
-| **Qdrant** (not Pinecone/Chroma) | Open-source, self-hosted, production-ready REST API |
-| **Cosine Similarity** (not Euclidean) | Compares semantic "direction" not magnitude - ideal for text embeddings |
-| **ReAct Agent** (not simple RAG) | Multi-step reasoning, transparent thought process, extensible tool system |
-| **5 Modular Tools** (not hardcoded) | Easy to extend - just add new Tool class |
-| **Hand-written Pipeline** (not LangChain) | Full control, no abstraction overhead, interview-ready code |
-| **Docs Widget in Starlight** | Keeps the assistant embedded inside the documentation site |
+- **Qdrant** for self-hosted semantic search
+- **ReAct agent** for transparent multi-step reasoning
+- **Environment-specific embeddings**: Ollama locally, FastEmbed on Railway
+- **Astro + Starlight widget** to keep the assistant inside the docs site
 
 ## Project Structure
 
@@ -129,11 +125,14 @@ ScriBot/
 │       └── index_docs.py           # Index docs into Qdrant
 │
 ├── Dockerfile.railway              # Hosted backend image (backend + Docs)
+├── railway.json                    # Railway deployment command/config
 ├── Docs/
 │   ├── src/components/ScriBotWidget.tsx   # Floating chatbot widget
 │   ├── src/lib/scribot.ts                 # Frontend API client
 │   ├── src/styles/scribot.css             # Widget styling
 │   └── src/content/docs/                  # KDAI documentation source
+├── backend/.env.railway.example    # Railway backend env example
+├── Docs/.env.railway.example       # Railway frontend env example
 └── qdrant_storage/                 # Local Qdrant persistence
 ```
 
@@ -163,33 +162,7 @@ Local indexing uses `nomic-embed-text` through Ollama (768-dim vectors). Hosted 
 
 ## ReAct Agent Architecture
 
-The agent uses **Reasoning + Acting** pattern:
-
-```python
-# Simplified agent loop
-while not done:
-    # 1. LLM generates thought + action
-    response = llm.generate(messages)
-    
-    # 2. Parse response
-    thought, action, action_input = parse(response)
-    
-    # 3. Execute tool
-    observation = tools[action].execute(**action_input)
-    
-    # 4. Add observation to context
-    messages.append(f"Observation: {observation}")
-    
-    # 5. Check for final answer
-    if "Final Answer" in response:
-        return extract_final_answer(response)
-```
-
-**Why ReAct?**
-- Transparent reasoning (can debug/explain each step)
-- Modular tool system (easy to add new capabilities)
-- Multi-step problem solving (not just single-shot Q&A)
-- Knowledge base management (create/delete documents dynamically)
+The agent follows a `Thought → Action → Observation → Final Answer` loop, which makes tool use explicit and debuggable. It is used for multi-step questions, source-aware retrieval, and document-management tasks.
 
 ## Quick Start
 
@@ -216,6 +189,8 @@ curl -X POST http://localhost:8000/api/agent/run \
   -d '{"message": "List all documents, then create a new guide about testing"}'
 ```
 
+For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted environment variables, and trigger indexing via `POST /api/admin/index-docs`.
+
 ## Current Status
 
 - Backend chat and agent endpoints are working
@@ -223,6 +198,9 @@ curl -X POST http://localhost:8000/api/agent/run \
 - Chat mode supports SSE streaming
 - Agent mode is the default mode and shows steps and source links
 - Provider labels expose active model names and availability via `/api/providers`
+- The deployed frontend now prefers a usable provider from `/api/providers` instead of always sticking to the initial UI default
+- Groq is labeled as `Recommended`, while remote Ollama is shown as `Local only` when unavailable
+- Deployed frontend shows a clear Ollama deployment hint instead of a raw DNS error
 - Source links stay in-page and preserve widget state via `sessionStorage`
 - Ollama is mainly for local development, while Groq is recommended for faster demos
 - Hosted indexing can be triggered remotely with `POST /api/admin/index-docs`
@@ -266,6 +244,11 @@ curl -X POST http://localhost:8000/api/agent/run \
 ```env
 DEFAULT_PROVIDER=groq
 EMBEDDING_PROVIDER=ollama
+OLLAMA_MODEL=llama3.1:8b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+OLLAMA_KEEP_ALIVE=30m
+OLLAMA_NUM_CTX=2048
+OLLAMA_NUM_PREDICT=512
 QDRANT_HOST=qdrant
 QDRANT_PORT=6333
 QDRANT_COLLECTION=kdai_docs
@@ -276,6 +259,7 @@ QDRANT_COLLECTION=kdai_docs
 ```env
 DEFAULT_PROVIDER=groq
 EMBEDDING_PROVIDER=fastembed
+GROQ_API_KEY=<your-groq-api-key>
 FASTEMBED_MODEL=BAAI/bge-small-en-v1.5
 FASTEMBED_BATCH_SIZE=4
 FASTEMBED_THREADS=1
@@ -284,6 +268,8 @@ QDRANT_URL=http://<your-qdrant-private-host>:6333
 QDRANT_COLLECTION=kdai_docs
 ADMIN_TOKEN=<your-admin-token>
 ```
+
+`OLLAMA_BASE_URL` is optional on Railway and should only be set if you explicitly host a reachable Ollama server. Otherwise, treat Ollama as local-only.
 
 ## Hosted Indexing
 
@@ -299,14 +285,23 @@ curl https://<your-backend>/api/admin/index-docs/status \
   -H "x-admin-token: <your-admin-token>"
 ```
 
-## What I Learned
+## Demo Questions
 
-1. **RAG Pipeline Design** - Chunking strategy matters (by headings > fixed size)
-2. **Vector Search** - Cosine similarity for semantic meaning, not just keywords
-3. **Agent Architecture** - ReAct pattern for transparent multi-step reasoning
-4. **Tool System Design** - Abstract base class + modular tools for extensibility
-5. **Prompt Engineering** - Structured output format for reliable parsing
-6. **Async Python** - httpx + asyncio for concurrent embedding requests
+### Chinese
+
+1. `請用一段話介紹 KDAI 是什麼。`（Chat mode）
+2. `請把 KDAI 架構分成 Backend、Frontend、Services、Infrastructure 四部分說明。`（Agent mode）
+3. `請整理 KDAI quick-start 的最小操作步驟，限制 5 點內。`（Chat mode）
+4. `什麼是 WebSocket broadcasting？請用 KDAI 的情境舉例。`（Agent mode）
+5. `請先用中文回答 KDAI 是什麼，再切換成英文用一句話重述一次。`（Chat mode）
+
+### English
+
+1. `What is KDAI in one paragraph?`（Chat mode）
+2. `Explain the KDAI architecture in four parts: Backend, Frontend, Services, and Infrastructure.`（Agent mode）
+3. `Give me the minimum quick-start steps in at most 5 bullet points.`（Chat mode）
+4. `What is WebSocket broadcasting, and how is it used in a KDAI scenario?`（Agent mode）
+5. `First answer in English, then switch to Chinese and summarize KDAI in one sentence.`（Chat mode）
 
 ## Related: KDAI2 Project
 
