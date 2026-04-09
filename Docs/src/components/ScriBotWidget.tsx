@@ -311,15 +311,22 @@ function pickUsableProvider(
   return current
 }
 
-function formatRequestError(error: unknown, provider?: ScribotProvider) {
+function formatRequestError(
+  error: unknown,
+  provider: ScribotProvider | undefined,
+  availability: Partial<Record<ScribotProvider, boolean>>,
+) {
   const message = error instanceof Error ? error.message : 'Unexpected error'
+  const ollamaUnavailable = availability.ollama === false
 
   if (message.includes('429') || /Too Many Requests/i.test(message)) {
-    return 'Groq rate limit reached. Please retry or switch to Ollama.'
+    return ollamaUnavailable
+      ? 'Groq rate limit reached. Please retry in a moment. Ollama is available only in local development, not on this deployment.'
+      : 'Groq rate limit reached. Please retry or switch to Ollama.'
   }
 
-  if (provider === 'ollama' && (/Name or service not known/i.test(message) || /getaddrinfo/i.test(message))) {
-    return 'Ollama is not available on this deployment. Use Ollama locally, or switch to Groq here.'
+  if (provider === 'ollama' && (/Name or service not known/i.test(message) || /getaddrinfo/i.test(message))) {
+    return 'Ollama is only available in local development. This deployed version supports Groq here.'
   }
 
   if (/Failed to fetch/i.test(message)) {
@@ -553,7 +560,7 @@ export default function ScriBotWidget() {
         )
       }
     } catch (err) {
-      setError(formatRequestError(err, provider))
+      setError(formatRequestError(err, provider, providerAvailability))
     } finally {
       setLoading(false)
     }
@@ -643,7 +650,7 @@ export default function ScriBotWidget() {
               onChange={(e) => setProvider(e.target.value as ScribotProvider)}
               aria-label="Select LLM provider"
             >
-              <option value="ollama">
+              <option value="ollama" disabled={providerAvailability.ollama === false}>
                 {formatProviderLabel('ollama', providerModels.ollama)}
                 {providerAvailability.ollama === false ? ' (Local only)' : ''}
               </option>
@@ -677,8 +684,8 @@ export default function ScriBotWidget() {
             </button>
           </div>
 
-          {provider === 'ollama' && providerAvailability.ollama === false ? (
-            <div className="scribot-provider-hint">Ollama is intended for local development only.</div>
+          {providerAvailability.ollama === false ? (
+            <div className="scribot-provider-hint">Ollama is available only in local development. This deployed version uses Groq.</div>
           ) : null}
 
           <div className="scribot-messages" ref={listRef}>
