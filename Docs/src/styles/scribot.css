@@ -71,6 +71,11 @@
 .scribot-panel {
   width: min(420px, calc(100vw - 2rem));
   height: min(70vh, 720px);
+  min-width: 360px;
+  max-width: min(720px, calc(100vw - 2rem));
+  min-height: 420px;
+  max-height: min(85vh, 900px);
+  position: relative;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   border: 1px solid var(--sl-color-hairline-shade);
@@ -79,6 +84,30 @@
   background: #101826;
   color: #f4f7fb;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.scribot-resize-handle {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.55rem;
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(159, 212, 255, 0.55), rgba(159, 212, 255, 0.12));
+  box-shadow: 0 0 0 1px rgba(159, 212, 255, 0.2);
+  cursor: nwse-resize;
+  z-index: 2;
+}
+
+.scribot-resize-handle::before {
+  content: '';
+  position: absolute;
+  inset: 0.22rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.8);
+  border-left: 1px solid rgba(255, 255, 255, 0.8);
+  border-top-left-radius: 999px;
 }
 
 .scribot-header,
@@ -99,6 +128,7 @@
   display: flex;
   gap: 0.6rem;
   align-items: center;
+  padding-left: 1.1rem;
 }
 
 .scribot-header-avatar {
@@ -648,6 +678,14 @@
   .scribot-panel {
     width: 100%;
     height: min(78vh, 720px);
+    min-width: 0;
+    min-height: 0;
+    max-width: none;
+    max-height: none;
+  }
+
+  .scribot-resize-handle {
+    display: none;
   }
 
   .scribot-header {

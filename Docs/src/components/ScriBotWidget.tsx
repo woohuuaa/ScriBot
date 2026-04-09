@@ -41,6 +41,10 @@ const WIDGET_STATE_KEY = 'scribot-widget-state-v1'
 const MAX_QA_PAIRS = 20
 const MAX_STORED_MESSAGES = MAX_QA_PAIRS * 2
 const MAX_STORED_MESSAGE_BYTES = 300 * 1024
+const PANEL_MIN_WIDTH = 360
+const PANEL_MAX_WIDTH = 720
+const PANEL_MIN_HEIGHT = 420
+const PANEL_MAX_HEIGHT = 900
 
 const DOC_SOURCE_LINKS: Record<string, string> = {
   'index.mdx': '/',
@@ -372,8 +376,10 @@ export default function ScriBotWidget() {
   const [providerModels, setProviderModels] = useState<Partial<Record<ScribotProvider, string>>>({})
   const [providerAvailability, setProviderAvailability] = useState<Partial<Record<ScribotProvider, boolean>>>({})
   const [copiedCommand, setCopiedCommand] = useState<string | null>(null)
+  const [panelSize, setPanelSize] = useState<{ width: number; height: number } | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
 
   async function handleCopyCommand(command: string) {
     try {
@@ -439,24 +445,23 @@ export default function ScriBotWidget() {
         if (parsed.provider === 'ollama' || parsed.provider === 'groq') {
           setProvider(parsed.provider)
         }
-        if (parsed.mode === 'chat' || parsed.mode === 'agent') {
-          setMode(parsed.mode)
-        }
-        if (Array.isArray(parsed.messages)) {
-          setMessages(
-            trimMessages(
-              parsed.messages.filter(
-                (message): message is ChatMessage =>
-                  typeof message === 'object' &&
-                  message !== null &&
-                  typeof message.id === 'string' &&
-                  (message.role === 'user' || message.role === 'assistant') &&
-                  typeof message.content === 'string' &&
-                  (message.mode === 'chat' || message.mode === 'agent'),
-              ),
+        const restoredMessages = Array.isArray(parsed.messages)
+          ? trimMessages(
+            parsed.messages.filter(
+              (message): message is ChatMessage =>
+                typeof message === 'object' &&
+                message !== null &&
+                typeof message.id === 'string' &&
+                (message.role === 'user' || message.role === 'assistant') &&
+                typeof message.content === 'string' &&
+                (message.mode === 'chat' || message.mode === 'agent'),
             ),
           )
+          : []
+        if (parsed.mode === 'chat' || parsed.mode === 'agent') {
+          setMode(restoredMessages.length ? parsed.mode : 'agent')
         }
+        setMessages(restoredMessages)
       }
     } catch {
       // Ignore storage read/parse errors.
@@ -568,17 +573,17 @@ export default function ScriBotWidget() {
         setMessages((prev) =>
           trimMessages([
             ...prev,
-              {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: result.answer,
-                mode: 'agent',
-                steps: result.steps,
-                sources: result.sources,
-                support: result.support,
-              },
-            ]),
-          )
+            {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: result.answer,
+              mode: 'agent',
+              steps: result.steps,
+              sources: result.sources,
+              support: result.support,
+            },
+          ]),
+        )
       }
     } catch (err) {
       setError(formatRequestError(err, provider, providerAvailability))
@@ -635,6 +640,43 @@ export default function ScriBotWidget() {
   function clearConversation() {
     setMessages([])
     setError(null)
+    setMode('agent')
+  }
+
+  function handleResizePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    if (window.matchMedia('(max-width: 640px)').matches) {
+      return
+    }
+
+    const panel = panelRef.current
+    if (!panel) return
+
+    event.preventDefault()
+
+    const startX = event.clientX
+    const startY = event.clientY
+    const startWidth = panel.offsetWidth
+    const startHeight = panel.offsetHeight
+
+    const maxWidth = Math.min(PANEL_MAX_WIDTH, window.innerWidth - 32)
+    const maxHeight = Math.min(PANEL_MAX_HEIGHT, Math.floor(window.innerHeight * 0.85))
+
+    const nextPointerId = event.pointerId
+    event.currentTarget.setPointerCapture(nextPointerId)
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const width = Math.min(maxWidth, Math.max(PANEL_MIN_WIDTH, startWidth - (moveEvent.clientX - startX)))
+      const height = Math.min(maxHeight, Math.max(PANEL_MIN_HEIGHT, startHeight - (moveEvent.clientY - startY)))
+      setPanelSize({ width, height })
+    }
+
+    const stopResize = () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', stopResize)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', stopResize)
   }
 
   const widget = (
@@ -650,7 +692,19 @@ export default function ScriBotWidget() {
       </button>
 
       {open ? (
-        <div className="scribot-panel" role="dialog" aria-label="ScriBot assistant panel">
+        <div
+          ref={panelRef}
+          className="scribot-panel"
+          role="dialog"
+          aria-label="ScriBot assistant panel"
+          style={panelSize ? { width: `${panelSize.width}px`, height: `${panelSize.height}px` } : undefined}
+        >
+          <button
+            type="button"
+            className="scribot-resize-handle"
+            aria-label="Resize ScriBot panel"
+            onPointerDown={handleResizePointerDown}
+          />
           <div className="scribot-header">
             <div className="scribot-header-main">
               <img src={houstonImage.src} alt="" className="scribot-header-avatar" />
@@ -708,7 +762,8 @@ export default function ScriBotWidget() {
           <div className="scribot-messages" ref={listRef}>
             {messages.length === 0 ? (
               <div className="scribot-empty-state">
-                <p>Ask about architecture, installation, troubleshooting, or run the full agent.</p>
+                <p><strong>AI assistant for KDAI documentation.</strong></p>
+                <p>Ask about architecture, installation, troubleshooting, or services with source-backed answers.</p>
               </div>
             ) : null}
 
@@ -716,91 +771,92 @@ export default function ScriBotWidget() {
               const visibleSources = getVisibleSources(message)
 
               return (
-              <div key={message.id} className={`scribot-message scribot-message-${message.role}`}>
-                <div className="scribot-message-role">{message.role === 'user' ? 'You' : 'ScriBot'}</div>
-                <div className="scribot-message-content">
-                  {message.role === 'assistant'
-                    ? message.mode === 'agent'
-                      ? renderAgentAssistantContent(message.content, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)
-                      : renderChatAssistantContent(message.content, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)
-                    : message.content}
-                </div>
+                <div key={message.id} className={`scribot-message scribot-message-${message.role}`}>
+                  <div className="scribot-message-role">{message.role === 'user' ? 'You' : 'ScriBot'}</div>
+                  <div className="scribot-message-content">
+                    {message.role === 'assistant'
+                      ? message.mode === 'agent'
+                        ? renderAgentAssistantContent(message.content, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)
+                        : renderChatAssistantContent(message.content, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)
+                      : message.content}
+                  </div>
 
-                {message.mode === 'agent' && message.steps?.length ? (
-                  <details className="scribot-agent-details">
-                    <summary>Agent steps</summary>
-                    <div className="scribot-step-list">
-                      {message.steps.map((step) => (
-                        <article key={`${message.id}-${step.step}`} className="scribot-step-card">
-                          <div className="scribot-step-card-header">
-                            <span className="scribot-step-index">Step {step.step}</span>
-                            <span className="scribot-step-label">{formatStepLabel(step)}</span>
-                          </div>
-
-                          {step.thought ? (
-                            <div className="scribot-step-block">
-                              <div className="scribot-step-block-label">Thought</div>
-                              <div>{step.thought}</div>
+                  {message.mode === 'agent' && message.steps?.length ? (
+                    <details className="scribot-agent-details">
+                      <summary>Agent steps</summary>
+                      <div className="scribot-step-list">
+                        {message.steps.map((step) => (
+                          <article key={`${message.id}-${step.step}`} className="scribot-step-card">
+                            <div className="scribot-step-card-header">
+                              <span className="scribot-step-index">Step {step.step}</span>
+                              <span className="scribot-step-label">{formatStepLabel(step)}</span>
                             </div>
-                          ) : null}
 
-                          {step.action ? (
-                            <div className="scribot-step-block">
-                              <div className="scribot-step-block-label">Action</div>
-                              <div>{step.action}</div>
-                            </div>
-                          ) : null}
+                            {step.thought ? (
+                              <div className="scribot-step-block">
+                                <div className="scribot-step-block-label">Thought</div>
+                                <div>{step.thought}</div>
+                              </div>
+                            ) : null}
 
-                          {step.action_input && Object.keys(step.action_input).length ? (
-                            <div className="scribot-step-block">
-                              <div className="scribot-step-block-label">Action input</div>
-                              <pre>{JSON.stringify(step.action_input, null, 2)}</pre>
-                            </div>
-                          ) : null}
+                            {step.action ? (
+                              <div className="scribot-step-block">
+                                <div className="scribot-step-block-label">Action</div>
+                                <div>{step.action}</div>
+                              </div>
+                            ) : null}
 
-                          {step.observation ? (
-                            <div className="scribot-step-block">
-                              <div className="scribot-step-block-label">Observation</div>
-                              {step.observation.length > 240 ? (
-                                <details className="scribot-step-observation-details">
-                                  <summary>Show observation</summary>
+                            {step.action_input && Object.keys(step.action_input).length ? (
+                              <div className="scribot-step-block">
+                                <div className="scribot-step-block-label">Action input</div>
+                                <pre>{JSON.stringify(step.action_input, null, 2)}</pre>
+                              </div>
+                            ) : null}
+
+                            {step.observation ? (
+                              <div className="scribot-step-block">
+                                <div className="scribot-step-block-label">Observation</div>
+                                {step.observation.length > 240 ? (
+                                  <details className="scribot-step-observation-details">
+                                    <summary>Show observation</summary>
+                                    <div className="scribot-step-observation">
+                                      {renderMarkdownContent(step.observation, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)}
+                                    </div>
+                                  </details>
+                                ) : (
                                   <div className="scribot-step-observation">
                                     {renderMarkdownContent(step.observation, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)}
                                   </div>
-                                </details>
-                              ) : (
-                                <div className="scribot-step-observation">
-                                  {renderMarkdownContent(step.observation, saveWidgetStateSnapshot, handleCopyCommand, copiedCommand)}
-                                </div>
-                              )}
-                            </div>
-                          ) : null}
-                        </article>
-                      ))}
-                    </div>
-                  </details>
-                ) : null}
+                                )}
+                              </div>
+                            ) : null}
+                          </article>
+                        ))}
+                      </div>
+                    </details>
+                  ) : null}
 
-                {message.role === 'assistant' && visibleSources.length ? (
-                  <div className="scribot-sources">
-                    <div className="scribot-sources-label">Sources</div>
-                    <ul className="scribot-source-chip-list">
-                      {visibleSources.map((source, index) => (
-                        <li key={`${source.source ?? 'source'}-${index}`} className="scribot-source-chip">
-                          {getSourceHref(source.source) ? (
-                            <a href={getSourceHref(source.source) ?? '#'} target="_self" onClick={saveWidgetStateSnapshot}>
-                              {source.source ?? source.title ?? 'Unknown source'}
-                            </a>
-                          ) : (
-                            source.source ?? source.title ?? 'Unknown source'
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </div>
-            )})}
+                  {message.role === 'assistant' && visibleSources.length ? (
+                    <div className="scribot-sources">
+                      <div className="scribot-sources-label">Sources</div>
+                      <ul className="scribot-source-chip-list">
+                        {visibleSources.map((source, index) => (
+                          <li key={`${source.source ?? 'source'}-${index}`} className="scribot-source-chip">
+                            {getSourceHref(source.source) ? (
+                              <a href={getSourceHref(source.source) ?? '#'} target="_self" onClick={saveWidgetStateSnapshot}>
+                                {source.source ?? source.title ?? 'Unknown source'}
+                              </a>
+                            ) : (
+                              source.source ?? source.title ?? 'Unknown source'
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
 
             {loading ? <div className="scribot-loading">Thinking...</div> : null}
             {error ? <div className="scribot-error">{error}</div> : null}
