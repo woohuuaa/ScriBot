@@ -98,140 +98,6 @@ function normalizeQuadBacktickFences(input: string) {
     .replace(/````/g, '```')
 }
 
-function formatAssistantContent(content: string) {
-  const normalizedFences = normalizeQuadBacktickFences(content)
-  const parts = normalizedFences.split(/(```[\s\S]*?```)/g)
-
-  const withLayoutFixes = parts
-    .map((part) => {
-      if (part.startsWith('```') && part.endsWith('```')) {
-        return part
-      }
-
-      return part
-        .replace(/\u00a0/g, ' ')
-        .replace(/([.!?。！？])([A-Z][a-z])/g, '$1\n\n$2')
-        .replace(/\*\*(Backend|Frontend|Services|Infrastructure)\*\*:/g, '**$1:**')
-        .replace(/([^\n])\s*(\*\*(Backend|Frontend|Services|Infrastructure):?\*\*)/g, '$1\n\n* $2 ')
-        .replace(/([^\n])\s*(Backend|Frontend|Services|Infrastructure):\s*/g, '$1\n\n* **$2:** ')
-        .replace(/(\))([A-Z][a-z])/g, '$1\n\n$2')
-        .replace(/([^\n])\s*(#{1,6}\s+)/g, '$1\n$2')
-        .replace(/([^\n])\s*(---)(?=\s*#{1,6}\s)/g, '$1\n$2\n')
-        .replace(/(include:|including:)\s*\+/gi, '$1\n+ ')
-        .replace(/([:：])\s*\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
-        .replace(/([^\n*])\s+\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
-        .replace(/([^\n\s*])\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
-        .replace(/([^\n\s+])\+(?=\s*[A-Za-z0-9])/g, '$1\n+ ')
-        .replace(/(^|\n)\+\s*(?=[A-Za-z0-9])/g, '$1+ ')
-        .replace(/(^|\n)\*\s*(?=[A-Za-z0-9])/g, '$1* ')
-        .replace(/(^|\n)\*(?=[A-Za-z0-9])/g, '$1* ')
-        .replace(/(\d+)\.\s+(\d+)/g, '$1.$2')
-        .replace(/(^|[\n:：.!?。！？]\s*)(\d+\.)(?=\S)/g, '$1$2 ')
-        .replace(/([:：])\s*(\d+\.\s)/g, '$1\n$2')
-        .replace(/([.!?。！？:：])\s*(\d+\.\s)/g, '$1\n$2')
-        .replace(/(#{1,6}[^\n]+?)\s*(?=[-*]\s)/g, '$1\n')
-        .replace(/(\*\*[^\n*]+\*\*)\s*(?=[-*]\s)/g, '$1\n')
-        .replace(/(\d+\.\s[^\n]+?)(?=\s*\d+\.\s)/g, '$1\n')
-        .replace(/([^\n])\s+(?=[-*]\s)/g, '$1\n')
-        .replace(/([^\n])\n(\d+\.\s)/g, '$1\n\n$2')
-    })
-    .join('')
-
-  const normalized = withLayoutFixes
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/([^\n])```/g, '$1\n```')
-    .replace(/```(bash|sh|json|yaml|yml|python|py|ts|tsx|js|jsx|sql|md)(?=[^\n])/gi, '```$1\n')
-    .replace(/```(?=[^\n`])/g, '```\n')
-
-  return normalizeSectionBullets(shouldNormalizeStepLists(normalized) ? normalizeStepLists(normalized) : normalized)
-}
-
-function shouldNormalizeStepLists(text: string) {
-  return /(quick-start|quick start|checklist|follow these steps|minimum steps|steps?:)/i.test(text)
-}
-
-function normalizeStepLists(text: string) {
-  const prepared = text
-    .replace(/(steps?:\s*)\n+([^\n*][^\n]*?)\n\*/gi, '$1\n* $2\n*')
-    .replace(/([:：]\s*)\n+([^\n*][^\n]*?)\n\*/g, '$1\n* $2\n*')
-    .replace(/([:：.!?。！？])\s*(\d+\.\s+)/g, '$1\n$2')
-    .replace(/(\d+\.\s[^\n]+?)(?=\s+\d+\.\s)/g, '$1\n')
-    .replace(/(^|\n)(\*\*Step\s+\d+[^\n*]*\*\*)/gi, '$1* $2')
-    .replace(/([A-Za-z])\n(\d+\.\d+)/g, '$1 $2')
-
-  const lines = prepared.split('\n')
-  const normalizedLines: string[] = []
-
-  let index = 0
-  while (index < lines.length) {
-    const line = lines[index]
-    const bulletMatch = line.match(/^\s*[-*]\s+(.+)$/)
-
-    if (!bulletMatch) {
-      normalizedLines.push(line)
-      index += 1
-      continue
-    }
-
-    if (bulletMatch[1].trim().startsWith('**')) {
-      normalizedLines.push(`* ${bulletMatch[1].trim()}`)
-      index += 1
-      continue
-    }
-
-    let stepIndex = 1
-    while (index < lines.length) {
-      const current = lines[index]
-      const match = current.match(/^\s*[-*]\s+(.+)$/)
-      if (!match) break
-
-      normalizedLines.push(`${stepIndex}. ${match[1].trim()}`)
-      stepIndex += 1
-      index += 1
-    }
-  }
-
-  return normalizedLines
-    .join('\n')
-    .replace(/([.!?。！？:：])\s*(\d+\.\s)/g, '$1\n$2')
-    .replace(/(^|\n)(\d+\.\s)([^\n]+)(?=\n\d+\.\s|$)/g, (_full, prefix, marker, body) => {
-      return `${prefix}${marker}${body.trim()}`
-    })
-}
-
-function normalizeSectionBullets(text: string) {
-  const lines = text.split('\n')
-  const normalizedLines: string[] = []
-  const sectionPattern = /^(?:\*\s*)?(\*\*(Backend|Frontend|Services|Infrastructure)\*\*:?|\*\*(Backend|Frontend|Services|Infrastructure):\*\*|(Backend|Frontend|Services|Infrastructure):?)\s*(.*)$/
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim()
-
-    if (!line) {
-      normalizedLines.push('')
-      continue
-    }
-
-    const match = line.match(sectionPattern)
-    if (!match) {
-      normalizedLines.push(rawLine)
-      continue
-    }
-
-    const rawLabel = match[1]
-    const trailing = (match[5] ?? '').trim().replace(/^:\s*/, '')
-    const labelText = rawLabel.replace(/^\*\*/, '').replace(/\*\*:$/, '').replace(/\*\*$/, '').replace(/:$/, '')
-    const normalizedLabel = `**${labelText}:**`
-
-    normalizedLines.push(normalizedLabel)
-    if (trailing) {
-      normalizedLines.push(trailing)
-    }
-  }
-
-  return normalizedLines.join('\n').replace(/\n{3,}/g, '\n\n')
-}
-
 function getCodeLanguage(className?: string) {
   const match = className?.match(/language-([a-zA-Z0-9_+-]+)/)
   return match?.[1]?.toLowerCase() ?? null
@@ -303,9 +169,8 @@ function renderMarkdownContent(
   onLinkClick: () => void,
   onCopyCommand: (command: string) => void,
   copiedCommand: string | null,
-  normalizeContent = false,
 ) {
-  const formattedContent = normalizeContent ? formatAssistantContent(content) : normalizeQuadBacktickFences(content)
+  const formattedContent = normalizeQuadBacktickFences(content)
   const linkedContent = formattedContent
     .split(/(```[\s\S]*?```)/g)
     .map((part) => {
@@ -390,7 +255,7 @@ function renderChatAssistantContent(
   onCopyCommand: (command: string) => void,
   copiedCommand: string | null,
 ) {
-  return renderMarkdownContent(content, onLinkClick, onCopyCommand, copiedCommand, false)
+  return renderMarkdownContent(content, onLinkClick, onCopyCommand, copiedCommand)
 }
 
 function renderAgentAssistantContent(
@@ -399,7 +264,7 @@ function renderAgentAssistantContent(
   onCopyCommand: (command: string) => void,
   copiedCommand: string | null,
 ) {
-  return renderMarkdownContent(content, onLinkClick, onCopyCommand, copiedCommand, false)
+  return renderMarkdownContent(content, onLinkClick, onCopyCommand, copiedCommand)
 }
 
 function estimateMessageBytes(message: ChatMessage) {
