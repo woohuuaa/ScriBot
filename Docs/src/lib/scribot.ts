@@ -76,13 +76,13 @@ export async function streamChat(
     buffer = events.pop() ?? ''
 
     for (const event of events) {
-      const line = event
+      const dataLines = event
         .split('\n')
-        .find((item) => item.startsWith('data:'))
+        .filter((item) => item.startsWith('data:'))
 
-      if (!line) continue
+      if (!dataLines.length) continue
 
-      const data = line.replace(/^data:\s?/, '')
+      const data = dataLines.map((line) => line.replace(/^data:\s?/, '')).join('\n')
       if (data === '[DONE]') return
       if (data.startsWith('[Error]')) {
         throw new Error(data.replace(/^\[Error\]\s*/, ''))

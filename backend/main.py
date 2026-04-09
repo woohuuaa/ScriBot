@@ -77,12 +77,17 @@ def get_provider_cache_identity(provider) -> tuple[str, str]:
 
 
 async def stream_cached_text(text: str):
-    yield f"data: {text}\n\n"
-    yield "data: [DONE]\n\n"
+    yield build_sse_data_event(text)
+    yield build_sse_data_event("[DONE]")
 
 
 def build_sources_sse_event(sources: list[dict]) -> str:
     return "[META] " + json.dumps({"type": "sources", "sources": sources}, ensure_ascii=False)
+
+
+def build_sse_data_event(payload: str) -> str:
+    lines = payload.split("\n")
+    return "".join(f"data: {line}\n" for line in lines) + "\n"
 
 
 def require_admin_token(request: Request):
@@ -182,12 +187,12 @@ async def chat(request: Request):
         if cached_payload is not None:
             async def cached_event_generator():
                 if isinstance(cached_payload, str):
-                    yield f"data: {cached_payload}\n\n"
-                    yield f"data: {build_sources_sse_event([])}\n\n"
+                    yield build_sse_data_event(cached_payload)
+                    yield build_sse_data_event(build_sources_sse_event([]))
                 else:
-                    yield f"data: {cached_payload['answer']}\n\n"
-                    yield f"data: {build_sources_sse_event(cached_payload.get('sources', []))}\n\n"
-                yield "data: [DONE]\n\n"
+                    yield build_sse_data_event(cached_payload["answer"])
+                    yield build_sse_data_event(build_sources_sse_event(cached_payload.get("sources", [])))
+                yield build_sse_data_event("[DONE]")
 
             return StreamingResponse(cached_event_generator(), media_type="text/event-stream")
 
@@ -199,8 +204,8 @@ async def chat(request: Request):
         try:
             async for token in provider.generate_stream(rag_result["prompt"]):
                 answer_parts.append(token)
-                yield f"data: {token}\n\n"
-            yield f"data: {build_sources_sse_event(rag_result['sources'])}\n\n"
+                yield build_sse_data_event(token)
+            yield build_sse_data_event(build_sources_sse_event(rag_result["sources"]))
             if settings.enable_cache and settings.enable_response_cache:
                 cache_service.chat_response_cache.set(
                     response_cache_key,
@@ -208,9 +213,9 @@ async def chat(request: Request):
                     settings.response_cache_ttl_seconds,
                 )
         except Exception as e:
-            yield f"data: [Error] {str(e)}\n\n"
+            yield build_sse_data_event(f"[Error] {str(e)}")
         finally:
-            yield "data: [DONE]\n\n"
+            yield build_sse_data_event("[DONE]")
     
     return StreamingResponse(
         event_generator(),
