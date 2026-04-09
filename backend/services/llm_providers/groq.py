@@ -35,8 +35,9 @@ class GroqProvider(BaseLLMProvider):
         return 0.0  # Free tier for now
     
     async def generate_stream(
-        self, 
-        prompt: str
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Generate response with streaming
@@ -63,7 +64,7 @@ class GroqProvider(BaseLLMProvider):
         payload = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": settings.system_prompt},
+                {"role": "system", "content": system_prompt or settings.system_prompt},
                 {"role": "user", "content": prompt}
             ],
             "stream": True,

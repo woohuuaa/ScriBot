@@ -1,12 +1,14 @@
 import json
 
+from services.language import build_language_instruction
+
 
 # ─────────────────────────────────────────────────────────────
 # Agent System Prompts
 # ─────────────────────────────────────────────────────────────
 
 
-def build_agent_prompt(tools: list[dict]) -> str:
+def build_agent_prompt(tools: list[dict], user_input: str | None = None) -> str:
     """
     Build a stricter and more stable agent prompt
     """
@@ -19,6 +21,11 @@ def build_agent_prompt(tools: list[dict]) -> str:
         )
 
     tools_text = "\n".join(tool_lines)
+    language_instruction = (
+        build_language_instruction(user_input)
+        if user_input
+        else "Answer in the same language as the user's latest message unless they explicitly request another language."
+    )
 
     return f"""You are ScriBot Agent for KDAI documentation.
 
@@ -47,9 +54,10 @@ Strict rules:
 8. If the documentation is insufficient, say so clearly.
 9. Keep Thought brief and practical.
 10. Include sources in Final Answer when available.
-11. If the user writes in Traditional Chinese, answer in Traditional Chinese.
-12. If the user writes in Simplified Chinese, answer in Simplified Chinese.
-13. If the user explicitly asks for a response language, follow that requested language.
+11. {language_instruction}
+12. Use the user's latest message, not tool output language, to decide the final answer language.
+13. If the user writes in Traditional Chinese, answer in Traditional Chinese.
+14. If the user writes in Simplified Chinese, answer in Simplified Chinese.
 
 If you choose Format A, output exactly these three fields:
 Thought:

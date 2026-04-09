@@ -19,16 +19,18 @@ class OllamaProvider(BaseLLMProvider):
         return 0.0
     
     async def generate_stream(
-        self, 
-        prompt: str
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
+        resolved_system_prompt = system_prompt or settings.system_prompt
         chat_url = f"{self.base_url}/api/chat"
         generate_url = f"{self.base_url}/api/generate"
 
         chat_payload = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": settings.system_prompt},
+                {"role": "system", "content": resolved_system_prompt},
                 {"role": "user", "content": prompt},
             ],
             "stream": True,
@@ -41,7 +43,7 @@ class OllamaProvider(BaseLLMProvider):
         }
         generate_payload = {
             "model": self.model,
-            "prompt": f"{settings.system_prompt}\n\n{prompt}",
+            "prompt": f"{resolved_system_prompt}\n\n{prompt}",
             "stream": True,
             "think": False,
             "keep_alive": settings.ollama_keep_alive,

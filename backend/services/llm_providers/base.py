@@ -15,14 +15,16 @@ class BaseLLMProvider(ABC):
     """
     @abstractmethod
     async def generate_stream(
-        self, 
-        prompt: str
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Generate response with streaming
         
         Args:
             prompt: The input prompt
+            system_prompt: Optional system prompt override
             
         Yields:
             str: Response tokens, one by one

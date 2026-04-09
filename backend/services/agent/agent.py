@@ -19,15 +19,14 @@ class Agent:
         self.llm = llm_provider
         self.tools = {tool.name: tool for tool in tools}
         self.max_steps = max_steps
-
-        tool_dicts = [tool.to_dict() for tool in tools]
-        self.system_prompt = build_agent_prompt(tool_dicts) 
+        self.tool_dicts = [tool.to_dict() for tool in tools]
 
     async def run(self, user_input: str) -> dict:
         """
         Run the agent loop
 
         """
+        self.system_prompt = build_agent_prompt(self.tool_dicts, user_input)
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_input},
@@ -86,7 +85,7 @@ class Agent:
         prompt = self._build_conversation_prompt(messages) 
 
         response = ""
-        async for chunk in self.llm.generate_stream(prompt):
+        async for chunk in self.llm.generate_stream(prompt, system_prompt=self.system_prompt):
             response += chunk
 
         return response.strip()
@@ -98,6 +97,8 @@ class Agent:
         """
         parts = []
         for message in messages:
+            if message["role"] == "system":
+                continue
             parts.append(f"{message['role'].upper()}:\n{message['content']}") 
 
         parts.append("ASSISTANT:")
