@@ -70,8 +70,8 @@ Agent:
 │  POST /api/agent/run   ← ReAct Agent with 5 tools               │
 │  POST /api/admin/index-docs      ← Trigger hosted indexing      │
 │  GET  /api/admin/index-docs/status ← Check indexing status      │
-│  GET  /api/admin/cache/stats      ← Cache stats + generation     │
-│  POST /api/admin/cache/clear      ← Clear in-memory caches       │
+│  GET  /api/admin/cache/stats      ← Cache stats + generation    │
+│  POST /api/admin/cache/clear      ← Clear in-memory caches      │
 │  GET  /api/providers   ← Provider/model metadata                │
 │  GET  /api/health      ← Health check                           │
 └────────────────────────────────┬────────────────────────────────┘
