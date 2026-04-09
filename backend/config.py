@@ -117,11 +117,17 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
     enable_cache: bool = True
     enable_rag_cache: bool = True
     enable_response_cache: bool = True
+    cache_backend: str = "memory"
     rag_cache_ttl_seconds: int = 600
     response_cache_ttl_seconds: int = 900
     rag_cache_max_entries: int = 100
     chat_response_cache_max_entries: int = 100
     agent_response_cache_max_entries: int = 50
+    redis_url: str = ""
+    redis_prefix: str = "scribot"
+    redis_strict: bool = False
+    redis_connect_timeout_seconds: float = 2.0
+    redis_socket_timeout_seconds: float = 2.0
 
     # Admin operations
     admin_token: str = ""

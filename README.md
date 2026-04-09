@@ -207,7 +207,7 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 - Source links stay in-page and preserve widget state via `sessionStorage`
 - Ollama is mainly for local development, while Groq is recommended for faster demos
 - Hosted indexing can be triggered remotely with `POST /api/admin/index-docs` and monitored via `GET /api/admin/index-docs/status`
-- In-memory caching is enabled for RAG, chat responses, and agent responses, with automatic invalidation when docs change
+- Cache is enabled for RAG, chat responses, and agent responses, with automatic invalidation when docs change
 - Cache stats are available at `GET /api/admin/cache/stats`, and caches can be cleared with `POST /api/admin/cache/clear`
 - Railway demo deployment is working with `Groq + FastEmbed + Qdrant`
 
@@ -217,6 +217,7 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 - `Chat response cache` stores completed SSE answers per question, provider, model, and `docs_generation`
 - `Agent response cache` stores final JSON payloads per message, provider, model, and `docs_generation`
 - Any successful knowledge-base mutation bumps `docs_generation`, which prevents old cache keys from being reused
+- `GET /api/admin/cache/stats` reports the current `active_backend` so you can verify whether the service is using `memory` or `redis`
 
 ### Cache Configuration
 
@@ -226,11 +227,22 @@ Set these in `backend/.env` or your deployment environment:
 ENABLE_CACHE=true
 ENABLE_RAG_CACHE=true
 ENABLE_RESPONSE_CACHE=true
+CACHE_BACKEND=memory
 RAG_CACHE_TTL_SECONDS=600
 RESPONSE_CACHE_TTL_SECONDS=900
 RAG_CACHE_MAX_ENTRIES=100
 CHAT_RESPONSE_CACHE_MAX_ENTRIES=100
 AGENT_RESPONSE_CACHE_MAX_ENTRIES=50
+REDIS_STRICT=false
+```
+
+For Redis-backed deployments, also set:
+
+```env
+CACHE_BACKEND=redis
+REDIS_URL=redis://default:<password>@<host>:6379
+REDIS_PREFIX=scribot
+REDIS_STRICT=true
 ```
 
 ### Cache Admin Endpoints
@@ -289,6 +301,8 @@ after the file has been chunked, embedded, and upserted. This reuses the same in
 ```env
 DEFAULT_PROVIDER=groq
 EMBEDDING_PROVIDER=ollama
+CACHE_BACKEND=memory
+REDIS_STRICT=false
 GROQ_API_KEY=<your-groq-api-key>
 OLLAMA_MODEL=llama3.1:8b
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
@@ -305,6 +319,10 @@ QDRANT_COLLECTION=kdai_docs
 ```env
 DEFAULT_PROVIDER=groq
 EMBEDDING_PROVIDER=fastembed
+CACHE_BACKEND=redis
+REDIS_URL=redis://default:<password>@<host>:6379
+REDIS_PREFIX=scribot
+REDIS_STRICT=true
 GROQ_API_KEY=<your-groq-api-key>
 FASTEMBED_MODEL=BAAI/bge-small-en-v1.5
 FASTEMBED_BATCH_SIZE=4

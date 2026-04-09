@@ -36,6 +36,7 @@ class CacheAdminEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
+        self.assertEqual(payload["active_backend"], cache_service.active_backend)
         self.assertEqual(payload["last_invalidation_reason"], "test-upload")
         self.assertIn("rag", payload)
         self.assertIn("chat_response", payload)
