@@ -33,6 +33,7 @@ class Agent:
         ]
 
         steps = []
+        collected_sources = []
 
         for step_num in range(self.max_steps):
             response = await self._get_llm_response(messages)
@@ -47,11 +48,12 @@ class Agent:
             }
             steps.append(step_data)
             
-            if parsed.get("final_answer"): 
+            if parsed.get("final_answer"):
+                fallback_sources = self._extract_sources(parsed["final_answer"])
                 return {
                     "answer": parsed["final_answer"],
                     "steps": steps,
-                    "sources": self._extract_sources(parsed["final_answer"]),
+                    "sources": collected_sources or fallback_sources,
                 }
 
             if parsed.get("action"):
@@ -59,6 +61,7 @@ class Agent:
                     parsed["action"],
                     parsed.get("action_input", {}),
                 )
+                collected_sources = self._merge_sources(collected_sources, self._get_tool_sources(parsed["action"]))
 
                 messages.append({"role": "assistant", "content": response}) 
                 messages.append({"role": "user", "content": f"Observation: {observation}"}) 
@@ -75,7 +78,7 @@ class Agent:
         return {
             "answer": "I could not complete the task within the allowed steps.",
             "steps": steps,
-            "sources": [],
+            "sources": collected_sources,
         }
 
     async def _get_llm_response(self, messages: list[dict]) -> str:
@@ -149,6 +152,24 @@ class Agent:
             return await tool.execute(**params)
         except Exception as e:
             return f"Error executing {tool_name}: {str(e)}"
+
+    def _get_tool_sources(self, tool_name: str) -> list[dict]:
+        tool = self.tools.get(tool_name)
+        sources = getattr(tool, "last_sources", None)
+        if isinstance(sources, list):
+            return sources
+        return []
+
+    def _merge_sources(self, existing: list[dict], incoming: list[dict]) -> list[dict]:
+        merged = list(existing)
+        seen = {(item.get("source"), item.get("title")) for item in existing}
+        for item in incoming:
+            key = (item.get("source"), item.get("title"))
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+        return merged
 
     def _extract_sources(self, answer: str) -> list[dict]:
         """

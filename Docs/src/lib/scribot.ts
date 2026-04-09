@@ -33,13 +33,21 @@ export interface ProviderInfoResponse {
   default_provider: string
 }
 
+type ChatSourcesEvent = {
+  type: 'sources'
+  sources: AgentSource[]
+}
+
 // Use a public env var in deployed environments and default to local backend in development.
 const API_BASE = import.meta.env.PUBLIC_SCRIBOT_API_BASE ?? 'http://localhost:8000'
 
 export async function streamChat(
   question: string,
   provider: ScribotProvider,
-  onChunk: (chunk: string) => void,
+  handlers: {
+    onChunk: (chunk: string) => void
+    onSources: (sources: AgentSource[]) => void
+  },
 ): Promise<void> {
   const response = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
@@ -80,7 +88,19 @@ export async function streamChat(
         throw new Error(data.replace(/^\[Error\]\s*/, ''))
       }
 
-      onChunk(data)
+      if (data.startsWith('[META] ')) {
+        try {
+          const parsed = JSON.parse(data.slice(7)) as ChatSourcesEvent
+          if (parsed.type === 'sources' && Array.isArray(parsed.sources)) {
+            handlers.onSources(parsed.sources)
+            continue
+          }
+        } catch {
+          // Non-JSON content should keep flowing as a regular text chunk.
+        }
+      }
+
+      handlers.onChunk(data)
     }
   }
 }

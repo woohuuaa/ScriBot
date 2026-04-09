@@ -727,14 +727,25 @@ export default function ScriBotWidget() {
           ]),
         )
 
-        await streamChat(question, provider, (chunk) => {
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantId
-                ? { ...message, content: message.content + chunk }
-                : message,
-            ),
-          )
+        await streamChat(question, provider, {
+          onChunk: (chunk) => {
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId
+                  ? { ...message, content: message.content + chunk }
+                  : message,
+              ),
+            )
+          },
+          onSources: (sources) => {
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId
+                  ? { ...message, sources }
+                  : message,
+              ),
+            )
+          },
         })
       } else {
         // Agent mode returns the final answer, reasoning steps, and sources as JSON.
@@ -955,7 +966,7 @@ export default function ScriBotWidget() {
                   </details>
                 ) : null}
 
-                {message.mode === 'agent' && message.sources?.length ? (
+                {message.role === 'assistant' && message.sources?.length ? (
                   <div className="scribot-sources">
                     <div className="scribot-sources-label">Sources</div>
                     <ul className="scribot-source-chip-list">

@@ -37,6 +37,39 @@ class FakeLLM:
         yield "Thought: enough info\nFinal Answer: test"
 
 
+class FakeSearchTool(Tool):
+    def __init__(self):
+        self.last_sources = []
+
+    @property
+    def name(self) -> str:
+        return "search_docs"
+
+    @property
+    def description(self) -> str:
+        return "Search docs"
+
+    @property
+    def parameters(self) -> dict:
+        return {"type": "object", "properties": {"query": {"type": "string"}}}
+
+    async def execute(self, **kwargs) -> str:
+        self.last_sources = [{"source": "architecture.mdx", "title": "Architecture"}]
+        return "[1] Source: architecture.mdx\n    Title: Architecture\n    Content: KDAI architecture"
+
+
+class FakeReActLLM:
+    def __init__(self):
+        self.calls = 0
+
+    async def generate_stream(self, prompt: str, system_prompt: str | None = None):
+        self.calls += 1
+        if self.calls == 1:
+            yield 'Thought: search first\nAction: search_docs\nAction Input: {"query": "What is KDAI?"}'
+            return
+        yield 'Thought: enough info\nFinal Answer: KDAI is documented in the architecture guide.'
+
+
 class LanguageDetectionTests(unittest.TestCase):
     def test_detects_english_question(self):
         self.assertEqual(detect_response_language("What is KDAI?"), "English")
@@ -77,6 +110,15 @@ class AgentPromptTests(unittest.TestCase):
         self.assertEqual(len(llm.calls), 1)
         self.assertIn("The user's primary language is English.", llm.calls[0]["system_prompt"])
         self.assertNotIn("SYSTEM:\n", llm.calls[0]["prompt"])
+
+    def test_agent_returns_structured_sources_from_tools(self):
+        llm = FakeReActLLM()
+        agent = Agent(llm_provider=llm, tools=[FakeSearchTool()])
+
+        result = asyncio.run(agent.run("What is KDAI?"))
+
+        self.assertEqual(result["answer"], "KDAI is documented in the architecture guide.")
+        self.assertEqual(result["sources"], [{"source": "architecture.mdx", "title": "Architecture"}])
 
 
 if __name__ == "__main__":

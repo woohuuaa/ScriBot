@@ -1,5 +1,5 @@
-# FastAPI application entry point
 import asyncio
+import json
 from urllib.parse import urlparse
 
 import httpx
@@ -79,6 +79,10 @@ def get_provider_cache_identity(provider) -> tuple[str, str]:
 async def stream_cached_text(text: str):
     yield f"data: {text}\n\n"
     yield "data: [DONE]\n\n"
+
+
+def build_sources_sse_event(sources: list[dict]) -> str:
+    return "[META] " + json.dumps({"type": "sources", "sources": sources}, ensure_ascii=False)
 
 
 def require_admin_token(request: Request):
@@ -174,9 +178,18 @@ async def chat(request: Request):
         cache_service.get_docs_generation(),
     )
     if settings.enable_cache and settings.enable_response_cache:
-        cached_answer = cache_service.chat_response_cache.get(response_cache_key)
-        if cached_answer is not None:
-            return StreamingResponse(stream_cached_text(cached_answer), media_type="text/event-stream")
+        cached_payload = cache_service.chat_response_cache.get(response_cache_key)
+        if cached_payload is not None:
+            async def cached_event_generator():
+                if isinstance(cached_payload, str):
+                    yield f"data: {cached_payload}\n\n"
+                    yield f"data: {build_sources_sse_event([])}\n\n"
+                else:
+                    yield f"data: {cached_payload['answer']}\n\n"
+                    yield f"data: {build_sources_sse_event(cached_payload.get('sources', []))}\n\n"
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(cached_event_generator(), media_type="text/event-stream")
 
     # Retrieve relevant documentation context before calling the LLM.
     rag_result = await rag_service.query(question)
@@ -187,10 +200,11 @@ async def chat(request: Request):
             async for token in provider.generate_stream(rag_result["prompt"]):
                 answer_parts.append(token)
                 yield f"data: {token}\n\n"
+            yield f"data: {build_sources_sse_event(rag_result['sources'])}\n\n"
             if settings.enable_cache and settings.enable_response_cache:
                 cache_service.chat_response_cache.set(
                     response_cache_key,
-                    "".join(answer_parts),
+                    {"answer": "".join(answer_parts), "sources": rag_result["sources"]},
                     settings.response_cache_ttl_seconds,
                 )
         except Exception as e:
