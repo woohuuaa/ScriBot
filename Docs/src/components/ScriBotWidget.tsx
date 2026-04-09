@@ -223,9 +223,9 @@ function normalizeSectionBullets(text: string) {
     const labelText = rawLabel.replace(/^\*\*/, '').replace(/\*\*:$/, '').replace(/\*\*$/, '').replace(/:$/, '')
     const normalizedLabel = `**${labelText}:**`
 
-    normalizedLines.push(`* ${normalizedLabel}`)
+    normalizedLines.push(normalizedLabel)
     if (trailing) {
-      normalizedLines.push(`  ${trailing}`)
+      normalizedLines.push(trailing)
     }
   }
 
@@ -390,7 +390,7 @@ function renderChatAssistantContent(
   onCopyCommand: (command: string) => void,
   copiedCommand: string | null,
 ) {
-  return renderMarkdownContent(normalizeChatModeContent(content), onLinkClick, onCopyCommand, copiedCommand, false)
+  return renderMarkdownContent(content, onLinkClick, onCopyCommand, copiedCommand, false)
 }
 
 function renderAgentAssistantContent(
@@ -400,62 +400,6 @@ function renderAgentAssistantContent(
   copiedCommand: string | null,
 ) {
   return renderMarkdownContent(content, onLinkClick, onCopyCommand, copiedCommand, false)
-}
-
-function formatArchitectureSections(content: string) {
-  const normalized = normalizeQuadBacktickFences(content).replace(/\r\n/g, '\n')
-  const sectionRegex = /(\*\*)?(Backend|Frontend|Services|Infrastructure)(\*\*)?:/g
-  const matches = [...normalized.matchAll(sectionRegex)]
-
-  if (matches.length < 2) {
-    return null
-  }
-
-  const intro = normalized.slice(0, matches[0].index ?? 0).replace(/\s*\d+\.\s*$/, '').trim()
-  const parts: string[] = []
-
-  if (intro) {
-    parts.push(intro)
-  }
-
-  for (let index = 0; index < matches.length; index += 1) {
-    const match = matches[index]
-    const label = match[2]
-    const start = (match.index ?? 0) + match[0].length
-    const end = index + 1 < matches.length ? (matches[index + 1].index ?? normalized.length) : normalized.length
-    let body = normalized.slice(start, end).trim()
-
-    body = body
-      .replace(/(\d+)\.\s+(\d+)/g, '$1.$2')
-      .replace(/\s+(?=[*+-]\s)/g, '\n')
-      .replace(/\s*\d+\.\s*$/, '')
-      .replace(/([^\n*])\s+\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
-      .replace(/([^\n\s*])\*(?=\s*[A-Za-z0-9])/g, '$1\n* ')
-      .replace(/(^|\n)\*(?=[A-Za-z0-9])/g, '$1* ')
-      .replace(/(^|\n)\*\s*(?=[A-Za-z0-9])/g, '$1* ')
-      .replace(/([^\n])([A-Z][a-z]+ summary\b)/g, '$1\n\n$2')
-      .replace(/([^\n])((Please|Let)\b)/g, '$1\n\n$2')
-      .replace(/\n{3,}/g, '\n\n')
-
-    parts.push(`**${label}:**`)
-    if (body) {
-      parts.push(body)
-    }
-  }
-
-  return parts.join('\n\n')
-}
-
-function normalizeChatModeContent(content: string) {
-  const architectureFormatted = formatArchitectureSections(content)
-  if (architectureFormatted) {
-    return architectureFormatted
-  }
-
-  return formatAssistantContent(content)
-    .replace(/(^|\n)\d+\.\s*\n(?=\n*---\n\* \*\*(Backend|Frontend|Services|Infrastructure):\*\*)/g, '$1')
-    .replace(/(^|\n)---\n(?=\* \*\*(Backend|Frontend|Services|Infrastructure):\*\*)/g, '$1')
-    .replace(/(\* \*\*(Backend|Frontend|Services|Infrastructure):\*\*)\n\*\*\s+/g, '$1\n')
 }
 
 function estimateMessageBytes(message: ChatMessage) {
