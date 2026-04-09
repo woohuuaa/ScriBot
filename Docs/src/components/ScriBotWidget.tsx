@@ -157,13 +157,6 @@ function getCodeBlockFromPre(children: ReactNode) {
   return { className, rawCode }
 }
 
-const SOURCE_NAME_PATTERN = new RegExp(
-  `(${Object.keys(DOC_SOURCE_LINKS)
-    .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('|')})`,
-  'g',
-)
-
 function renderMarkdownContent(
   content: string,
   onLinkClick: () => void,
@@ -171,20 +164,6 @@ function renderMarkdownContent(
   copiedCommand: string | null,
 ) {
   const formattedContent = normalizeQuadBacktickFences(content)
-  const linkedContent = formattedContent
-    .split(/(```[\s\S]*?```)/g)
-    .map((part) => {
-      if (part.startsWith('```') && part.endsWith('```')) {
-        return part
-      }
-
-      return part.replace(SOURCE_NAME_PATTERN, (sourceName) => {
-        const href = DOC_SOURCE_LINKS[sourceName]
-        if (!href) return sourceName
-        return `[${sourceName}](${href})`
-      })
-    })
-    .join('')
 
   return (
     <ReactMarkdown
@@ -244,7 +223,7 @@ function renderMarkdownContent(
         code: ({ className, children }) => <code className={className}>{children}</code>,
       }}
     >
-      {linkedContent}
+      {formattedContent}
     </ReactMarkdown>
   )
 }
