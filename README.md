@@ -1,17 +1,19 @@
 # ScriBot
 
-> **RAG-Powered AI Assistant** for KDAI Documentation with chat, agent, and docs widget UI
+> RAG-powered KDAI documentation assistant with streaming chat, ReAct agent mode, source-aware answers, and a docs widget UI.
 
 ## What is This?
 
-ScriBot is a **documentation assistant** that uses:
+ScriBot is a documentation assistant that uses:
 - **RAG (Retrieval-Augmented Generation)** to search and cite 30+ technical documents
 - **ReAct Agent Architecture** for multi-step reasoning
 - **5 Modular Tools** for knowledge base management (search, list, info, create, delete)
 - **Vector Embeddings** with environment-specific providers (Ollama locally, FastEmbed for hosted demos)
 - **Multiple LLM Providers** (Ollama/Groq/OpenAI)
-- **Astro + Starlight widget UI** with floating launcher, streaming chat, agent steps, and source links
+- **Astro + Starlight widget UI** with floating launcher, streaming chat, agent steps, and source chips
 - **Session-persistent widget state** so source navigation keeps the conversation open
+- **Response-language matching** so English questions no longer drift into Chinese answers
+- **Memory/Redis cache backends** with docs-generation invalidation for hosted deployments
 
 ```
 User: "List all documents, then create a new guide about testing"
@@ -82,6 +84,15 @@ Agent:
 │  + Search     │        │ + Embeddings  │        │               │
 └───────────────┘        └───────────────┘        └───────────────┘
 ```
+
+## Highlights
+
+- Chat mode streams answers over SSE and now emits structured source metadata at the end of each response
+- Agent mode returns structured steps plus collected sources from tools instead of relying primarily on text parsing
+- Both chat and agent replies render source chips below the answer
+- Chat and agent caches preserve source metadata, not just answer text
+- Frontend answer rendering was simplified to avoid regex-based content rewriting that could corrupt formatting
+- Hosted deployments can use Redis-backed cache with `active_backend` visibility in `/api/admin/cache/stats`
 
 ## Key Technical Decisions
 
@@ -196,25 +207,21 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 
 ## Current Status
 
-- Backend chat and agent endpoints are working
-- Docs widget is mounted into the Astro + Starlight site
-- Chat mode supports SSE streaming
-- Agent mode is the default mode and shows steps and source links
+- Backend chat and agent endpoints are working locally and on Railway
+- Chat mode supports SSE streaming plus structured source metadata
+- Agent mode is the default mode and shows steps and collected sources
+- Both chat and agent replies render source chips below the answer
+- Response language follows the user's latest message or explicit language request
 - Provider labels expose active model names and availability via `/api/providers`
-- The deployed frontend now prefers a usable provider from `/api/providers` instead of always sticking to the initial UI default
-- Groq is labeled as `Recommended`, while remote Ollama is shown as `Local only` when unavailable
-- Deployed frontend shows a clear Ollama deployment hint instead of a raw DNS error
-- Source links stay in-page and preserve widget state via `sessionStorage`
 - Ollama is mainly for local development, while Groq is recommended for faster demos
 - Hosted indexing can be triggered remotely with `POST /api/admin/index-docs` and monitored via `GET /api/admin/index-docs/status`
 - Cache is enabled for RAG, chat responses, and agent responses, with automatic invalidation when docs change
 - Cache stats are available at `GET /api/admin/cache/stats`, and caches can be cleared with `POST /api/admin/cache/clear`
-- Railway demo deployment is working with `Groq + FastEmbed + Qdrant`
 
 ## Cache Behavior
 
 - `RAG cache` stores retrieved context payloads per normalized question, `top_k`, and `docs_generation`
-- `Chat response cache` stores completed SSE answers per question, provider, model, and `docs_generation`
+- `Chat response cache` stores completed SSE answers plus structured `sources` per question, provider, model, and `docs_generation`
 - `Agent response cache` stores final JSON payloads per message, provider, model, and `docs_generation`
 - Any successful knowledge-base mutation bumps `docs_generation`, which prevents old cache keys from being reused
 - `GET /api/admin/cache/stats` reports the current `active_backend` so you can verify whether the service is using `memory` or `redis`
@@ -262,6 +269,12 @@ curl -X POST https://<your-backend>/api/admin/cache/clear \
 If you later add upload-based RAG references, call `cache_service.mark_docs_changed("upload_reference:<filename>")`
 after the file has been chunked, embedded, and upserted. This reuses the same invalidation path as `index_docs`,
 `create_doc`, and `delete_doc`.
+
+## Answer Rendering
+
+- Frontend answer rendering is intentionally minimal: code fence normalization, markdown rendering, source chips, and code-copy support
+- Source filenames inside answer bodies are no longer auto-linkified; clickable links live in the `Sources` section below each reply
+- This avoids broken inline links inside code spans or code blocks and keeps the rendered answer closer to the model output
 
 ## Deployment Recommendation
 
@@ -358,6 +371,7 @@ curl https://<your-backend>/api/admin/index-docs/status \
 3. `請整理 KDAI quick-start 的最小操作步驟，限制 5 點內。`（Chat mode）
 4. `什麼是 WebSocket broadcasting？請用 KDAI 的情境舉例。`（Agent mode）
 5. `請先用中文回答 KDAI 是什麼，再切換成英文用一句話重述一次。`（Chat mode）
+6. `請用中文解釋 KDAI 架構，分成 Backend / Frontend / Services / Infrastructure。`（Chat mode，格式與 source chips 回歸測試）
 
 ### English
 
@@ -366,6 +380,7 @@ curl https://<your-backend>/api/admin/index-docs/status \
 3. `Give me the minimum quick-start steps in at most 5 bullet points.`（Chat mode）
 4. `What is WebSocket broadcasting, and how is it used in a KDAI scenario?`（Agent mode）
 5. `First answer in English, then switch to Chinese and summarize KDAI in one sentence.`（Chat mode）
+6. `What are the main KDAI services and what does each one do?`（Agent mode，source collection 回歸測試）
 
 ## Related: KDAI2 Project
 
