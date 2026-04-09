@@ -684,10 +684,6 @@ export default function ScriBotWidget() {
             </button>
           </div>
 
-          {providerAvailability.ollama === false ? (
-            <div className="scribot-provider-hint">Ollama is available only in local development. This deployed version uses Groq.</div>
-          ) : null}
-
           <div className="scribot-messages" ref={listRef}>
             {messages.length === 0 ? (
               <div className="scribot-empty-state">
