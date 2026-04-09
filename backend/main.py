@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import settings, LLMProvider
+from services.cache import build_cache_key, cache_service, normalize_cache_text
 from services.agent import (
     Agent,
     SearchDocsTool,
@@ -69,6 +70,26 @@ def get_llm_provider(provider_name: str = None):
         return OpenAIProvider()
     else:
         return OllamaProvider()
+
+
+def get_provider_cache_identity(provider) -> tuple[str, str]:
+    return provider.get_name(), getattr(provider, "model", "unknown")
+
+
+async def stream_cached_text(text: str):
+    yield f"data: {text}\n\n"
+    yield "data: [DONE]\n\n"
+
+
+def require_admin_token(request: Request):
+    if not settings.admin_token:
+        raise HTTPException(status_code=404, detail="Admin endpoints are disabled")
+
+    provided_token = request.headers.get("x-admin-token", "")
+    if provided_token != settings.admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+
 # ─────────────────────────────────────────────────────────────
 # API Endpoints
 # ─────────────────────────────────────────────────────────────
@@ -142,16 +163,36 @@ async def chat(request: Request):
     body = await request.json()
     question = body.get("question", "")
     provider_name = body.get("provider")
+    provider = get_llm_provider(provider_name)
+    provider_cache_name, provider_model = get_provider_cache_identity(provider)
+
+    response_cache_key = build_cache_key(
+        "chat",
+        normalize_cache_text(question),
+        provider_cache_name,
+        provider_model,
+        cache_service.get_docs_generation(),
+    )
+    if settings.enable_cache and settings.enable_response_cache:
+        cached_answer = cache_service.chat_response_cache.get(response_cache_key)
+        if cached_answer is not None:
+            return StreamingResponse(stream_cached_text(cached_answer), media_type="text/event-stream")
 
     # Retrieve relevant documentation context before calling the LLM.
     rag_result = await rag_service.query(question)
     
-    provider = get_llm_provider(provider_name)
-    
     async def event_generator():
+        answer_parts = []
         try:
             async for token in provider.generate_stream(rag_result["prompt"]):
+                answer_parts.append(token)
                 yield f"data: {token}\n\n"
+            if settings.enable_cache and settings.enable_response_cache:
+                cache_service.chat_response_cache.set(
+                    response_cache_key,
+                    "".join(answer_parts),
+                    settings.response_cache_ttl_seconds,
+                )
         except Exception as e:
             yield f"data: [Error] {str(e)}\n\n"
         finally:
@@ -179,6 +220,19 @@ async def run_agent(request: Request):
     provider_name = body.get("provider")
 
     provider = get_llm_provider(provider_name)
+    provider_cache_name, provider_model = get_provider_cache_identity(provider)
+    response_cache_key = build_cache_key(
+        "agent",
+        normalize_cache_text(message),
+        provider_cache_name,
+        provider_model,
+        cache_service.get_docs_generation(),
+    )
+    if settings.enable_cache and settings.enable_response_cache:
+        cached_result = cache_service.agent_response_cache.get(response_cache_key)
+        if cached_result is not None:
+            return cached_result
+
     agent = Agent(
         llm_provider=provider,
         tools=[
@@ -199,25 +253,27 @@ async def run_agent(request: Request):
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    return {
+    response_payload = {
         "answer": result["answer"],
         "steps": result["steps"],
         "sources": result["sources"],
         "provider": provider_name or settings.default_provider.value,
     }
+    if settings.enable_cache and settings.enable_response_cache:
+        cache_service.agent_response_cache.set(
+            response_cache_key,
+            response_payload,
+            settings.response_cache_ttl_seconds,
+        )
+
+    return response_payload
 
 
 @app.post("/api/admin/index-docs")
 async def trigger_index_docs(request: Request):
     """Trigger document indexing for hosted environments without shell access."""
     global indexing_task
-
-    if not settings.admin_token:
-        raise HTTPException(status_code=404, detail="Indexing endpoint is disabled")
-
-    provided_token = request.headers.get("x-admin-token", "")
-    if provided_token != settings.admin_token:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
+    require_admin_token(request)
 
     body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
     recreate = bool(body.get("recreate", False))
@@ -231,6 +287,7 @@ async def trigger_index_docs(request: Request):
     async def run_indexing_task():
         try:
             await index_documents(recreate=recreate)
+            cache_service.mark_docs_changed("index_docs")
             indexing_status["state"] = "completed"
         except Exception as exc:
             indexing_status["state"] = "failed"
@@ -246,16 +303,27 @@ async def trigger_index_docs(request: Request):
 
 @app.get("/api/admin/index-docs/status")
 async def index_docs_status(request: Request):
-    if not settings.admin_token:
-        raise HTTPException(status_code=404, detail="Indexing endpoint is disabled")
-
-    provided_token = request.headers.get("x-admin-token", "")
-    if provided_token != settings.admin_token:
-        raise HTTPException(status_code=403, detail="Invalid admin token")
+    require_admin_token(request)
 
     return {
         "status": indexing_status["state"],
         "last_error": indexing_status["last_error"],
+    }
+
+
+@app.get("/api/admin/cache/stats")
+async def cache_stats(request: Request):
+    require_admin_token(request)
+    return cache_service.get_stats()
+
+
+@app.post("/api/admin/cache/clear")
+async def clear_cache(request: Request):
+    require_admin_token(request)
+    cache_service.clear_all_caches()
+    return {
+        "status": "cleared",
+        "docs_generation": cache_service.get_docs_generation(),
     }
 
 # ─────────────────────────────────────────────────────────────

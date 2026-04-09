@@ -1,6 +1,7 @@
 import re
 
 from config import settings
+from services.cache import build_cache_key, cache_service, normalize_cache_text
 from services.embedder import embedder
 from services.language import build_language_instruction, detect_explicit_language_request, detect_response_language
 from services.qdrant_client import qdrant_service
@@ -173,14 +174,31 @@ Question:
         Returns:
             dict: {context, prompt, sources, results}
         """
-        results = await self.retrieve(question, top_k)
-        context = self.build_context(results)
+        resolved_top_k = top_k if top_k is not None else settings.top_k_results
 
-        return {
+        cache_key = build_cache_key(
+            "rag",
+            normalize_cache_text(question),
+            resolved_top_k,
+            cache_service.get_docs_generation(),
+        )
+        if settings.enable_cache and settings.enable_rag_cache:
+            cached = cache_service.rag_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+        results = await self.retrieve(question, resolved_top_k)
+        context = self.build_context(results)
+        payload = {
             "context": context,
             "prompt": self.build_prompt(question, context),
             "sources": self.build_sources(results),
             "results": results,
         }
+
+        if settings.enable_cache and settings.enable_rag_cache:
+            cache_service.rag_cache.set(cache_key, payload, settings.rag_cache_ttl_seconds)
+
+        return payload
 
 rag_service = RAGService()

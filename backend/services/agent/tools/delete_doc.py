@@ -1,5 +1,6 @@
 from pathlib import Path
 from services.agent.tools.base import Tool
+from services.cache import cache_service
 from services.qdrant_client import qdrant_service
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
@@ -94,6 +95,8 @@ This will remove the document file and all its indexed chunks from the vector da
             # Format response
             if chunks_deleted == 0 and not file_deleted:
                 return f"Document '{filename}' not found in the knowledge base or file system."
+
+            cache_service.mark_docs_changed(f"delete_doc:{filename}")
             
             response = f"Document '{filename}' deleted successfully!\n\n"
             if chunks_deleted > 0:

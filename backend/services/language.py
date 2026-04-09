@@ -21,7 +21,9 @@ DUTCH_MARKERS = {
     "de", "het", "een", "wat", "hoe", "vergelijk", "vereisten", "functionele", "niet-functionele",
 }
 
-
+# This function checks if the user explicitly requested a specific language in their question. 
+# It uses regular expressions to look for common phrases that indicate a language preference. 
+# If it finds a match, it returns the requested language. Otherwise, it returns None.
 def detect_explicit_language_request(question: str) -> str | None:
     lowered = question.lower()
     for pattern, language in EXPLICIT_LANGUAGE_PATTERNS:
@@ -29,7 +31,8 @@ def detect_explicit_language_request(question: str) -> str | None:
             return language
     return None
 
-
+# This function detects whether the Chinese text in the question is primarily Traditional or Simplified. 
+# It counts the occurrences of characters that are unique to each variant and compares the scores.
 def detect_chinese_variant(question: str) -> str | None:
     traditional_score = sum(1 for char in question if char in TRADITIONAL_MARKERS)
     simplified_score = sum(1 for char in question if char in SIMPLIFIED_MARKERS)
@@ -42,14 +45,19 @@ def detect_chinese_variant(question: str) -> str | None:
 
     return None
 
-
+# This function detects the primary non-Chinese language in the question. 
+# It looks for Dutch markers in the Latin tokens. If it finds any, 
+# it returns "Dutch". Otherwise, it defaults to "English". This is a simple 
+# heuristic that can be improved with more sophisticated language detection if needed.
 def detect_primary_non_chinese_language(question: str) -> str:
     tokens = re.findall(r"[a-zA-Z]+", question.lower())
     if any(token in DUTCH_MARKERS for token in tokens):
         return "Dutch"
     return "English"
 
-
+# This function determines the appropriate language for the response based on the user's question. 
+# It first checks if the user explicitly requested a language. If not, it counts Chinese characters 
+# and Latin tokens to determine the primary language.
 def detect_response_language(question: str) -> str:
     explicit_language = detect_explicit_language_request(question)
     if explicit_language:
@@ -70,7 +78,11 @@ def detect_response_language(question: str) -> str:
 
     return detect_primary_non_chinese_language(question)
 
-
+# This function builds an instruction for the language model based on the user's question. 
+# It first checks if the user explicitly requested a language, and if so, it instructs the 
+# model to answer in that language. If not, it detects the primary language of the question 
+# and instructs the model to answer in that language, while also advising against switching 
+# languages due to documentation or tool output.
 def build_language_instruction(question: str) -> str:
     explicit_language = detect_explicit_language_request(question)
     response_language = detect_response_language(question)

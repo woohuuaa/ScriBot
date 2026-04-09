@@ -1,6 +1,7 @@
 from pathlib import Path
 import uuid
 from services.agent.tools.base import Tool
+from services.cache import cache_service
 from services.chunker import chunker
 from services.embedder import embedder
 from services.qdrant_client import qdrant_service
@@ -111,6 +112,7 @@ description: {title}
             ]
             
             qdrant_service.upsert_points(ids, vectors, payloads)
+            cache_service.mark_docs_changed(f"create_doc:{filename}")
             
             return f"""Document created successfully!
 

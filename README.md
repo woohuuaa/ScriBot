@@ -68,6 +68,8 @@ Agent:
 │  POST /api/agent/run   ← ReAct Agent with 5 tools               │
 │  POST /api/admin/index-docs      ← Trigger hosted indexing      │
 │  GET  /api/admin/index-docs/status ← Check indexing status      │
+│  GET  /api/admin/cache/stats      ← Cache stats + generation     │
+│  POST /api/admin/cache/clear      ← Clear in-memory caches       │
 │  GET  /api/providers   ← Provider/model metadata                │
 │  GET  /api/health      ← Health check                           │
 └────────────────────────────────┬────────────────────────────────┘
@@ -102,6 +104,7 @@ ScriBot/
 │   │   ├── embedder.py             # Embedding providers (Ollama / FastEmbed)
 │   │   ├── qdrant_client.py        # Vector DB operations
 │   │   ├── chunker.py              # MDX parsing + text chunking
+│   │   ├── cache.py                # In-memory caches + docs generation
 │   │   ├── rag.py                  # RAG pipeline (retrieve + context)
 │   │   │
 │   │   ├── agent/                  # ReAct Agent
@@ -204,7 +207,49 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 - Source links stay in-page and preserve widget state via `sessionStorage`
 - Ollama is mainly for local development, while Groq is recommended for faster demos
 - Hosted indexing can be triggered remotely with `POST /api/admin/index-docs` and monitored via `GET /api/admin/index-docs/status`
+- In-memory caching is enabled for RAG, chat responses, and agent responses, with automatic invalidation when docs change
+- Cache stats are available at `GET /api/admin/cache/stats`, and caches can be cleared with `POST /api/admin/cache/clear`
 - Railway demo deployment is working with `Groq + FastEmbed + Qdrant`
+
+## Cache Behavior
+
+- `RAG cache` stores retrieved context payloads per normalized question, `top_k`, and `docs_generation`
+- `Chat response cache` stores completed SSE answers per question, provider, model, and `docs_generation`
+- `Agent response cache` stores final JSON payloads per message, provider, model, and `docs_generation`
+- Any successful knowledge-base mutation bumps `docs_generation`, which prevents old cache keys from being reused
+
+### Cache Configuration
+
+Set these in `backend/.env` or your deployment environment:
+
+```env
+ENABLE_CACHE=true
+ENABLE_RAG_CACHE=true
+ENABLE_RESPONSE_CACHE=true
+RAG_CACHE_TTL_SECONDS=600
+RESPONSE_CACHE_TTL_SECONDS=900
+RAG_CACHE_MAX_ENTRIES=100
+CHAT_RESPONSE_CACHE_MAX_ENTRIES=100
+AGENT_RESPONSE_CACHE_MAX_ENTRIES=50
+```
+
+### Cache Admin Endpoints
+
+These endpoints require `x-admin-token` and are disabled when `ADMIN_TOKEN` is empty.
+
+```bash
+curl https://<your-backend>/api/admin/cache/stats \
+  -H "x-admin-token: <your-admin-token>"
+
+curl -X POST https://<your-backend>/api/admin/cache/clear \
+  -H "x-admin-token: <your-admin-token>"
+```
+
+### Future Upload Hooks
+
+If you later add upload-based RAG references, call `cache_service.mark_docs_changed("upload_reference:<filename>")`
+after the file has been chunked, embedded, and upserted. This reuses the same invalidation path as `index_docs`,
+`create_doc`, and `delete_doc`.
 
 ## Deployment Recommendation
 

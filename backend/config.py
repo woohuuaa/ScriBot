@@ -113,6 +113,16 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
     enable_monitoring: bool = True
     # Enable/disable monitoring
 
+    # Cache settings
+    enable_cache: bool = True
+    enable_rag_cache: bool = True
+    enable_response_cache: bool = True
+    rag_cache_ttl_seconds: int = 600
+    response_cache_ttl_seconds: int = 900
+    rag_cache_max_entries: int = 100
+    chat_response_cache_max_entries: int = 100
+    agent_response_cache_max_entries: int = 50
+
     # Admin operations
     admin_token: str = ""
     
