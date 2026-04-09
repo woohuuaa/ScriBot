@@ -38,7 +38,7 @@ def dedupe_sources(sources: list[dict]) -> list[dict]:
     seen = set()
     deduped = []
     for source in sources:
-        key = (source.get("source"), source.get("title"))
+        key = source.get("source") or source.get("title")
         if key in seen:
             continue
         seen.add(key)

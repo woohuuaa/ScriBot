@@ -304,16 +304,22 @@
 }
 
 .scribot-message {
+  align-self: start;
+  width: fit-content;
+  max-width: 100%;
   border-radius: 14px;
   padding: 0.85rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .scribot-message-user {
+  justify-self: end;
+  max-width: min(85%, 32rem);
   background: rgba(126, 180, 255, 0.16);
 }
 
 .scribot-message-assistant {
+  justify-self: stretch;
   background: rgba(255, 255, 255, 0.08);
 }
 

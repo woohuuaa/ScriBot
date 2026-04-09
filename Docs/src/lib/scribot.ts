@@ -42,7 +42,8 @@ type ChatMetadataEvent = {
 }
 
 // Use a public env var in deployed environments and default to local backend in development.
-const API_BASE = import.meta.env.PUBLIC_SCRIBOT_API_BASE ?? 'http://localhost:8000'
+export const API_BASE = import.meta.env.PUBLIC_SCRIBOT_API_BASE ?? 'http://localhost:8000'
+export const IS_LOCAL_SCRIBOT_BACKEND = /localhost|127\.0\.0\.1/.test(API_BASE)
 
 export async function streamChat(
   question: string,

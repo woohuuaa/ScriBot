@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import {
+  IS_LOCAL_SCRIBOT_BACKEND,
   getProviderInfo,
   runAgent,
   streamChat,
@@ -35,12 +36,14 @@ type PersistedWidgetState = {
   provider: ScribotProvider
   mode: ScribotMode
   messages: ChatMessage[]
+  error: string | null
 }
 
 const WIDGET_STATE_KEY = 'scribot-widget-state-v1'
 const MAX_QA_PAIRS = 20
 const MAX_STORED_MESSAGES = MAX_QA_PAIRS * 2
 const MAX_STORED_MESSAGE_BYTES = 300 * 1024
+const DEFAULT_MODE: ScribotMode = IS_LOCAL_SCRIBOT_BACKEND ? 'chat' : 'agent'
 const PANEL_MIN_WIDTH = 360
 const PANEL_MAX_WIDTH = 720
 const PANEL_MIN_HEIGHT = 420
@@ -98,8 +101,8 @@ function getVisibleSources(message: ChatMessage) {
 
   const seen = new Set<string>()
   const deduped = message.sources.filter((source) => {
-    const key = `${source.source ?? ''}::${source.title ?? ''}`
-    if (seen.has(key)) return false
+    const key = source.source ?? source.title ?? ''
+        if (seen.has(key)) return false
     seen.add(key)
     return true
   })
@@ -369,7 +372,7 @@ export default function ScriBotWidget() {
   const [questionHistory, setQuestionHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const [provider, setProvider] = useState<ScribotProvider>('ollama')
-  const [mode, setMode] = useState<ScribotMode>('agent')
+  const [mode, setMode] = useState<ScribotMode>(DEFAULT_MODE)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -408,6 +411,7 @@ export default function ScriBotWidget() {
         provider,
         mode,
         messages: nextMessages,
+        error,
       }
       window.sessionStorage.setItem(WIDGET_STATE_KEY, JSON.stringify(snapshot))
     } catch {
@@ -442,6 +446,9 @@ export default function ScriBotWidget() {
         if (parsed.historyIndex === null || typeof parsed.historyIndex === 'number') {
           setHistoryIndex(parsed.historyIndex)
         }
+        if (parsed.error === null || typeof parsed.error === 'string') {
+          setError(parsed.error)
+        }
         if (parsed.provider === 'ollama' || parsed.provider === 'groq') {
           setProvider(parsed.provider)
         }
@@ -459,7 +466,7 @@ export default function ScriBotWidget() {
           )
           : []
         if (parsed.mode === 'chat' || parsed.mode === 'agent') {
-          setMode(restoredMessages.length ? parsed.mode : 'agent')
+          setMode(restoredMessages.length ? parsed.mode : DEFAULT_MODE)
         }
         setMessages(restoredMessages)
       }
@@ -473,7 +480,7 @@ export default function ScriBotWidget() {
   useEffect(() => {
     if (!mounted) return
     saveWidgetStateSnapshot()
-  }, [mounted, open, input, draftInput, questionHistory, historyIndex, provider, mode, messages])
+  }, [mounted, open, input, draftInput, questionHistory, historyIndex, provider, mode, messages, error])
 
   useEffect(() => {
     let cancelled = false
@@ -640,7 +647,7 @@ export default function ScriBotWidget() {
   function clearConversation() {
     setMessages([])
     setError(null)
-    setMode('agent')
+    setMode(DEFAULT_MODE)
   }
 
   function handleResizePointerDown(event: React.PointerEvent<HTMLButtonElement>) {

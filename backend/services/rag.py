@@ -132,10 +132,10 @@ class RAGService:
         Build lightweight source citations from search results
         """
         sources = []
-        seen = set() # To avoid duplicate sources (same source file and title)
+        seen = set() # To avoid duplicate sources from the same file
 
         for result in results:
-            key = (result["source"], result["title"]) # Unique key for deduplication
+            key = result["source"] # Source chips only display the file, so keep one entry per file.
             if key in seen: # Skip if we've already added this source
                 continue
 
