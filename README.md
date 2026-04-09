@@ -58,7 +58,7 @@ Agent:
 │                                                                 │
 │  Floating ScriBot widget                                        │
 │  - Chat mode (SSE streaming)                                    │
-│  - Agent mode (default, with steps + sources)                   │
+│  - Agent mode (steps + sources)                                 │
 │  - Provider switcher (Ollama / Groq)                            │
 └──────────────────────────────────┬──────────────────────────────┘
                                    │
@@ -89,7 +89,9 @@ Agent:
 
 - Chat mode streams answers over SSE and now emits structured source metadata at the end of each response
 - Agent mode returns structured steps plus collected sources from tools instead of relying primarily on text parsing
+- Chat and agent responses now include structured `support` metadata (`supported` or `uncertain`)
 - Both chat and agent replies render source chips below the answer
+- Uncertain answers show at most 3 likely source chips instead of a long citation list
 - Chat and agent caches preserve source metadata, not just answer text
 - Frontend answer rendering was simplified to avoid regex-based content rewriting that could corrupt formatting
 - Hosted deployments can use Redis-backed cache with `active_backend` visibility in `/api/admin/cache/stats`
@@ -209,8 +211,9 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 
 - Backend chat and agent endpoints are working locally and on Railway
 - Chat mode supports SSE streaming plus structured source metadata
-- Agent mode is the default mode and shows steps and collected sources
+- Agent mode shows steps and collected sources
 - Both chat and agent replies render source chips below the answer
+- Chat and agent replies include structured `support` metadata used to control source-chip display
 - Response language follows the user's latest message or explicit language request
 - Provider labels expose active model names and availability via `/api/providers`
 - Ollama is mainly for local development, while Groq is recommended for faster demos
@@ -221,8 +224,8 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 ## Cache Behavior
 
 - `RAG cache` stores retrieved context payloads per normalized question, `top_k`, and `docs_generation`
-- `Chat response cache` stores completed SSE answers plus structured `sources` per question, provider, model, and `docs_generation`
-- `Agent response cache` stores final JSON payloads per message, provider, model, and `docs_generation`
+- `Chat response cache` stores completed SSE answers plus structured `sources` and `support` per question, provider, model, and `docs_generation`
+- `Agent response cache` stores final JSON payloads per message, provider, model, `sources`, and `support`
 - Any successful knowledge-base mutation bumps `docs_generation`, which prevents old cache keys from being reused
 - `GET /api/admin/cache/stats` reports the current `active_backend` so you can verify whether the service is using `memory` or `redis`
 
@@ -275,6 +278,15 @@ after the file has been chunked, embedded, and upserted. This reuses the same in
 - Frontend answer rendering is intentionally minimal: code fence normalization, markdown rendering, source chips, and code-copy support
 - Source filenames inside answer bodies are no longer auto-linkified; clickable links live in the `Sources` section below each reply
 - This avoids broken inline links inside code spans or code blocks and keeps the rendered answer closer to the model output
+- Frontend no longer guesses whether an answer is uncertain from the answer text; source-chip behavior now follows backend `support` metadata
+- Duplicate source chips are collapsed to one entry per source file
+
+## Widget Behavior
+
+- Local development defaults to `Ollama + chat` for faster iteration
+- Hosted deployments prefer a usable hosted provider and keep Ollama visible as `Local only` when unavailable
+- The widget preserves conversation state and the latest error message across refreshes in the same session
+- The desktop widget can be resized from a custom handle in the top-left corner
 
 ## Deployment Recommendation
 
@@ -346,7 +358,7 @@ QDRANT_COLLECTION=kdai_docs
 ADMIN_TOKEN=<your-admin-token>
 ```
 
-`OLLAMA_BASE_URL` is optional on Railway and should only be set if you explicitly host a reachable Ollama server. Otherwise, treat Ollama as local-only. In deployed environments, the frontend uses `/api/providers` to surface provider availability and prefers a usable provider by default.
+`OLLAMA_BASE_URL` is optional on Railway and should only be set if you explicitly host a reachable Ollama server. Otherwise, treat Ollama as local-only. In deployed environments, the frontend uses `/api/providers` to surface provider availability, keeps local-only Ollama visible but disabled, and prefers a usable provider by default.
 
 ## Hosted Indexing
 
