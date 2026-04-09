@@ -7,6 +7,7 @@ import {
   getProviderInfo,
   runAgent,
   streamChat,
+  type AnswerSupport,
   type AgentStep,
   type AgentSource,
   type ScribotMode,
@@ -22,6 +23,7 @@ type ChatMessage = {
   mode: ScribotMode
   steps?: AgentStep[]
   sources?: AgentSource[]
+  support?: AnswerSupport
 }
 
 type PersistedWidgetState = {
@@ -85,6 +87,24 @@ function formatStepLabel(step: AgentStep) {
 function getSourceHref(source?: string) {
   if (!source) return null
   return DOC_SOURCE_LINKS[source] ?? null
+}
+
+function getVisibleSources(message: ChatMessage) {
+  if (!message.sources?.length) return []
+
+  const seen = new Set<string>()
+  const deduped = message.sources.filter((source) => {
+    const key = `${source.source ?? ''}::${source.title ?? ''}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  if (message.support === 'uncertain') {
+    return deduped.slice(0, 3)
+  }
+
+  return deduped
 }
 
 function normalizeQuadBacktickFences(input: string) {
@@ -532,11 +552,11 @@ export default function ScriBotWidget() {
               ),
             )
           },
-          onSources: (sources) => {
+          onMetadata: ({ sources, support }) => {
             setMessages((prev) =>
               prev.map((message) =>
                 message.id === assistantId
-                  ? { ...message, sources }
+                  ? { ...message, sources, support }
                   : message,
               ),
             )
@@ -548,16 +568,17 @@ export default function ScriBotWidget() {
         setMessages((prev) =>
           trimMessages([
             ...prev,
-            {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: result.answer,
-              mode: 'agent',
-              steps: result.steps,
-              sources: result.sources,
-            },
-          ]),
-        )
+              {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: result.answer,
+                mode: 'agent',
+                steps: result.steps,
+                sources: result.sources,
+                support: result.support,
+              },
+            ]),
+          )
       }
     } catch (err) {
       setError(formatRequestError(err, provider, providerAvailability))
@@ -691,7 +712,10 @@ export default function ScriBotWidget() {
               </div>
             ) : null}
 
-            {messages.map((message) => (
+            {messages.map((message) => {
+              const visibleSources = getVisibleSources(message)
+
+              return (
               <div key={message.id} className={`scribot-message scribot-message-${message.role}`}>
                 <div className="scribot-message-role">{message.role === 'user' ? 'You' : 'ScriBot'}</div>
                 <div className="scribot-message-content">
@@ -757,11 +781,11 @@ export default function ScriBotWidget() {
                   </details>
                 ) : null}
 
-                {message.role === 'assistant' && message.sources?.length ? (
+                {message.role === 'assistant' && visibleSources.length ? (
                   <div className="scribot-sources">
                     <div className="scribot-sources-label">Sources</div>
                     <ul className="scribot-source-chip-list">
-                      {message.sources.map((source, index) => (
+                      {visibleSources.map((source, index) => (
                         <li key={`${source.source ?? 'source'}-${index}`} className="scribot-source-chip">
                           {getSourceHref(source.source) ? (
                             <a href={getSourceHref(source.source) ?? '#'} target="_self" onClick={saveWidgetStateSnapshot}>
@@ -776,7 +800,7 @@ export default function ScriBotWidget() {
                   </div>
                 ) : null}
               </div>
-            ))}
+            )})}
 
             {loading ? <div className="scribot-loading">Thinking...</div> : null}
             {error ? <div className="scribot-error">{error}</div> : null}

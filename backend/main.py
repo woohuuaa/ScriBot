@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from config import settings, LLMProvider
+from services.answer_support import detect_chat_support, select_sources_for_support
 from services.cache import build_cache_key, cache_service, normalize_cache_text
 from services.agent import (
     Agent,
@@ -81,8 +82,8 @@ async def stream_cached_text(text: str):
     yield build_sse_data_event("[DONE]")
 
 
-def build_sources_sse_event(sources: list[dict]) -> str:
-    return "[META] " + json.dumps({"type": "sources", "sources": sources}, ensure_ascii=False)
+def build_metadata_sse_event(sources: list[dict], support: str) -> str:
+    return "[META] " + json.dumps({"type": "metadata", "sources": sources, "support": support}, ensure_ascii=False)
 
 
 def build_sse_data_event(payload: str) -> str:
@@ -188,10 +189,11 @@ async def chat(request: Request):
             async def cached_event_generator():
                 if isinstance(cached_payload, str):
                     yield build_sse_data_event(cached_payload)
-                    yield build_sse_data_event(build_sources_sse_event([]))
+                    yield build_sse_data_event(build_metadata_sse_event([], "supported"))
                 else:
+                    cached_support = cached_payload.get("support", "supported")
                     yield build_sse_data_event(cached_payload["answer"])
-                    yield build_sse_data_event(build_sources_sse_event(cached_payload.get("sources", [])))
+                    yield build_sse_data_event(build_metadata_sse_event(cached_payload.get("sources", []), cached_support))
                 yield build_sse_data_event("[DONE]")
 
             return StreamingResponse(cached_event_generator(), media_type="text/event-stream")
@@ -205,11 +207,14 @@ async def chat(request: Request):
             async for token in provider.generate_stream(rag_result["prompt"]):
                 answer_parts.append(token)
                 yield build_sse_data_event(token)
-            yield build_sse_data_event(build_sources_sse_event(rag_result["sources"]))
+            answer = "".join(answer_parts)
+            support = detect_chat_support(answer, rag_result["results"])
+            sources = select_sources_for_support(rag_result["sources"], support)
+            yield build_sse_data_event(build_metadata_sse_event(sources, support))
             if settings.enable_cache and settings.enable_response_cache:
                 cache_service.chat_response_cache.set(
                     response_cache_key,
-                    {"answer": "".join(answer_parts), "sources": rag_result["sources"]},
+                    {"answer": answer, "sources": sources, "support": support},
                     settings.response_cache_ttl_seconds,
                 )
         except Exception as e:
@@ -250,6 +255,8 @@ async def run_agent(request: Request):
     if settings.enable_cache and settings.enable_response_cache:
         cached_result = cache_service.agent_response_cache.get(response_cache_key)
         if cached_result is not None:
+            if isinstance(cached_result, dict) and "support" not in cached_result:
+                cached_result = {**cached_result, "support": "supported"}
             return cached_result
 
     agent = Agent(
@@ -276,6 +283,7 @@ async def run_agent(request: Request):
         "answer": result["answer"],
         "steps": result["steps"],
         "sources": result["sources"],
+        "support": result["support"],
         "provider": provider_name or settings.default_provider.value,
     }
     if settings.enable_cache and settings.enable_response_cache:

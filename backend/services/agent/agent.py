@@ -1,6 +1,7 @@
 import json
 import re
 
+from services.answer_support import detect_agent_support, select_sources_for_support
 from services.agent.prompts import build_agent_prompt
 from services.agent.tools.base import Tool
 
@@ -49,11 +50,15 @@ class Agent:
             steps.append(step_data)
             
             if parsed.get("final_answer"):
+                answer = parsed["final_answer"]
                 fallback_sources = self._extract_sources(parsed["final_answer"])
+                support = detect_agent_support(answer, collected_sources, steps)
+                sources = select_sources_for_support(collected_sources or fallback_sources, support)
                 return {
-                    "answer": parsed["final_answer"],
+                    "answer": answer,
                     "steps": steps,
-                    "sources": collected_sources or fallback_sources,
+                    "sources": sources,
+                    "support": support,
                 }
 
             if parsed.get("action"):
@@ -75,10 +80,13 @@ class Agent:
                     }
                 )
 
+        answer = "I could not complete the task within the allowed steps."
+        support = detect_agent_support(answer, collected_sources, steps)
         return {
-            "answer": "I could not complete the task within the allowed steps.",
+            "answer": answer,
             "steps": steps,
-            "sources": collected_sources,
+            "sources": select_sources_for_support(collected_sources, support),
+            "support": support,
         }
 
     async def _get_llm_response(self, messages: list[dict]) -> str:

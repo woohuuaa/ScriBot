@@ -119,6 +119,7 @@ class AgentPromptTests(unittest.TestCase):
 
         self.assertEqual(result["answer"], "KDAI is documented in the architecture guide.")
         self.assertEqual(result["sources"], [{"source": "architecture.mdx", "title": "Architecture"}])
+        self.assertEqual(result["support"], "supported")
 
 
 if __name__ == "__main__":

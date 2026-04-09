@@ -1,5 +1,6 @@
 export type ScribotProvider = 'ollama' | 'groq'
 export type ScribotMode = 'chat' | 'agent'
+export type AnswerSupport = 'supported' | 'uncertain'
 
 export interface AgentStep {
   step: number
@@ -19,6 +20,7 @@ export interface AgentResponse {
   answer: string
   steps: AgentStep[]
   sources: AgentSource[]
+  support: AnswerSupport
   provider: string
 }
 
@@ -33,9 +35,10 @@ export interface ProviderInfoResponse {
   default_provider: string
 }
 
-type ChatSourcesEvent = {
-  type: 'sources'
+type ChatMetadataEvent = {
+  type: 'metadata'
   sources: AgentSource[]
+  support: AnswerSupport
 }
 
 // Use a public env var in deployed environments and default to local backend in development.
@@ -46,7 +49,7 @@ export async function streamChat(
   provider: ScribotProvider,
   handlers: {
     onChunk: (chunk: string) => void
-    onSources: (sources: AgentSource[]) => void
+    onMetadata: (metadata: { sources: AgentSource[]; support: AnswerSupport }) => void
   },
 ): Promise<void> {
   const response = await fetch(`${API_BASE}/api/chat`, {
@@ -90,9 +93,9 @@ export async function streamChat(
 
       if (data.startsWith('[META] ')) {
         try {
-          const parsed = JSON.parse(data.slice(7)) as ChatSourcesEvent
-          if (parsed.type === 'sources' && Array.isArray(parsed.sources)) {
-            handlers.onSources(parsed.sources)
+          const parsed = JSON.parse(data.slice(7)) as ChatMetadataEvent
+          if (parsed.type === 'metadata' && Array.isArray(parsed.sources) && parsed.support) {
+            handlers.onMetadata({ sources: parsed.sources, support: parsed.support })
             continue
           }
         } catch {
