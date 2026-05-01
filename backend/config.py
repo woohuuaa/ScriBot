@@ -131,6 +131,8 @@ Example redirect: "I can help with that briefly! By the way, I'm specialized in 
 
     # Admin operations
     admin_token: str = ""
+    public_chat_requests_per_minute: int = 20
+    public_agent_requests_per_minute: int = 10
     
     # ─────────────────────────────────────────────────────────
     # Pydantic config

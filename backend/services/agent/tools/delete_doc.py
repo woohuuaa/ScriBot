@@ -1,5 +1,5 @@
-from pathlib import Path
 from services.agent.tools.base import Tool
+from services.agent.tools.doc_path import resolve_docs_file
 from services.cache import cache_service
 from services.qdrant_client import qdrant_service
 from qdrant_client.models import Filter, FieldCondition, MatchValue
@@ -7,10 +7,6 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 # ─────────────────────────────────────────────────────────────
 # Delete Doc Tool
 # ─────────────────────────────────────────────────────────────
-
-# Path to docs directory (in Docker container)
-DOCS_PATH = Path("/app/Docs/src/content/docs")
-
 
 class DeleteDocTool(Tool):
     """
@@ -47,11 +43,7 @@ This will remove the document file and all its indexed chunks from the vector da
         try:
             # Note: MVP uses a fixed scroll limit because current docs are small.
             # If a document can exceed this number of chunks later, add pagination.
-            # Validate filename
-            if not filename.endswith(".mdx"):
-                filename = filename + ".mdx"
-            
-            file_path = DOCS_PATH / filename
+            filename, file_path = resolve_docs_file(filename)
             
             # Step 1: Delete from Qdrant
             # First, count how many chunks will be deleted

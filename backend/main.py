@@ -1,5 +1,9 @@
 import asyncio
 import json
+import math
+import time
+from collections import defaultdict, deque
+from threading import Lock
 from urllib.parse import urlparse
 
 import httpx
@@ -36,6 +40,41 @@ indexing_status = {
     "last_error": None,
 }
 indexing_task: asyncio.Task | None = None
+
+
+class InMemoryRateLimiter:
+    def __init__(self, limit: int, window_seconds: int = 60):
+        self.limit = max(0, limit)
+        self.window_seconds = max(1, window_seconds)
+        self._events: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = Lock()
+
+    def check(self, key: str) -> int | None:
+        if self.limit <= 0:
+            return None
+
+        now = time.time()
+        cutoff = now - self.window_seconds
+
+        with self._lock:
+            events = self._events[key]
+            while events and events[0] <= cutoff:
+                events.popleft()
+
+            if len(events) >= self.limit:
+                retry_after = max(1, math.ceil(self.window_seconds - (now - events[0])))
+                return retry_after
+
+            events.append(now)
+            return None
+
+    def clear(self):
+        with self._lock:
+            self._events.clear()
+
+
+chat_rate_limiter = InMemoryRateLimiter(settings.public_chat_requests_per_minute)
+agent_rate_limiter = InMemoryRateLimiter(settings.public_agent_requests_per_minute)
 
 app.add_middleware(
     CORSMiddleware,
@@ -98,6 +137,47 @@ def require_admin_token(request: Request):
     provided_token = request.headers.get("x-admin-token", "")
     if provided_token != settings.admin_token:
         raise HTTPException(status_code=403, detail="Invalid admin token")
+
+
+def is_admin_request(request: Request) -> bool:
+    return bool(settings.admin_token) and request.headers.get("x-admin-token", "") == settings.admin_token
+
+
+def get_request_identity(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+    if forwarded_for:
+        return forwarded_for
+
+    if request.client and request.client.host:
+        return request.client.host
+
+    return "unknown"
+
+
+def require_rate_limit(request: Request, limiter: InMemoryRateLimiter, label: str):
+    retry_after = limiter.check(get_request_identity(request))
+    if retry_after is None:
+        return
+
+    raise HTTPException(
+        status_code=429,
+        detail=f"{label} rate limit exceeded. Try again later.",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+def build_agent_tools(request: Request) -> tuple[list, str]:
+    tools = [
+        SearchDocsTool(),
+        ListDocsTool(),
+        GetDocInfoTool(),
+    ]
+
+    if is_admin_request(request):
+        tools.extend([CreateDocTool(), DeleteDocTool()])
+        return tools, "admin"
+
+    return tools, "readonly"
 
 
 # ─────────────────────────────────────────────────────────────
@@ -170,6 +250,7 @@ async def chat(request: Request):
             "provider": "ollama" (optional)
         }
     """
+    require_rate_limit(request, chat_rate_limiter, "Chat")
     body = await request.json()
     question = body.get("question", "")
     provider_name = body.get("provider")
@@ -239,9 +320,11 @@ async def run_agent(request: Request):
             "provider": "ollama" (optional)
         }
     """
+    require_rate_limit(request, agent_rate_limiter, "Agent")
     body = await request.json()
     message = body.get("message", "")
     provider_name = body.get("provider")
+    tools, tool_profile = build_agent_tools(request)
 
     provider = get_llm_provider(provider_name)
     provider_cache_name, provider_model = get_provider_cache_identity(provider)
@@ -250,6 +333,7 @@ async def run_agent(request: Request):
         normalize_cache_text(message),
         provider_cache_name,
         provider_model,
+        tool_profile,
         cache_service.get_docs_generation(),
     )
     if settings.enable_cache and settings.enable_response_cache:
@@ -261,13 +345,7 @@ async def run_agent(request: Request):
 
     agent = Agent(
         llm_provider=provider,
-        tools=[
-            SearchDocsTool(),
-            ListDocsTool(),
-            GetDocInfoTool(),
-            CreateDocTool(),
-            DeleteDocTool(),
-        ],
+        tools=tools,
         max_steps=10,
     )
 

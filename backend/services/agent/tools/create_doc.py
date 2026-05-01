@@ -1,6 +1,6 @@
-from pathlib import Path
 import uuid
 from services.agent.tools.base import Tool
+from services.agent.tools.doc_path import resolve_docs_file
 from services.cache import cache_service
 from services.chunker import chunker
 from services.embedder import embedder
@@ -16,10 +16,6 @@ from services.qdrant_client import qdrant_service
 # 3. Generates embeddings for each chunk
 # 4. Stores the chunks in Qdrant
 # ─────────────────────────────────────────────────────────────
-
-# Path to docs directory (in Docker container)
-DOCS_PATH = Path("/app/Docs/src/content/docs")
-
 
 class CreateDocTool(Tool):
     """
@@ -63,11 +59,7 @@ Content should be in Markdown format."""
         Create a new document and index it
         """
         try:
-            # Validate filename
-            if not filename.endswith(".mdx"):
-                filename = filename + ".mdx"
-            
-            file_path = DOCS_PATH / filename
+            filename, file_path = resolve_docs_file(filename)
             
             # Check if file already exists
             if file_path.exists():

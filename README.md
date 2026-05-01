@@ -42,13 +42,15 @@ Agent:
 
 ## 5 Agent Tools
 
+Public `/api/agent/run` requests are read-only. The document-management tools require `x-admin-token`.
+
 | Tool | Description | Use Case |
 |------|-------------|----------|
 | `search_docs` | Semantic search across all documents | "What is KDAI's architecture?" |
 | `list_docs` | List all indexed documents | "What documents are available?" |
 | `get_doc_info` | Get details about a specific document | "Tell me about architecture.mdx" |
-| `create_doc` | Create new document + auto-index | "Create a guide about deployment" |
-| `delete_doc` | Delete document + remove from index | "Remove the old-guide.mdx" |
+| `create_doc` | Create new document + auto-index (admin only) | "Create a guide about deployment" |
+| `delete_doc` | Delete document + remove from index (admin only) | "Remove the old-guide.mdx" |
 
 ## Architecture
 
@@ -67,7 +69,7 @@ Agent:
 │                         FastAPI Backend                         │
 │                                                                 │
 │  POST /api/chat        ← RAG-enhanced chat                      │
-│  POST /api/agent/run   ← ReAct Agent with 5 tools               │
+│  POST /api/agent/run   ← ReAct Agent (read-only by default)     │
 │  POST /api/admin/index-docs      ← Trigger hosted indexing      │
 │  GET  /api/admin/index-docs/status ← Check indexing status      │
 │  GET  /api/admin/cache/stats      ← Cache stats + generation    │
@@ -178,7 +180,7 @@ Local indexing uses `nomic-embed-text` through Ollama (768-dim vectors). Hosted 
 
 ## ReAct Agent Architecture
 
-The agent follows a `Thought → Action → Observation → Final Answer` loop, which makes tool use explicit and debuggable. It is used for multi-step questions, source-aware retrieval, and document-management tasks.
+The agent follows a `Thought → Action → Observation → Final Answer` loop, which makes tool use explicit and debuggable. Public requests are limited to retrieval tools, while document-management tools require an admin token.
 
 ## Quick Start
 
@@ -199,9 +201,10 @@ curl -X POST http://localhost:8000/api/agent/run \
   -H "Content-Type: application/json" \
   -d '{"message": "Explain KDAI architecture and how to install it", "provider": "groq"}'
 
-# 5. Test Agent with document management
+# 5. Test Agent with document management (admin only)
 curl -X POST http://localhost:8000/api/agent/run \
   -H "Content-Type: application/json" \
+  -H "x-admin-token: <your-admin-token>" \
   -d '{"message": "List all documents, then create a new guide about testing"}'
 ```
 
@@ -231,7 +234,13 @@ For Railway demos, deploy the backend with `Dockerfile.railway`, set the hosted 
 
 ### Cache Configuration
 
-Set these in `backend/.env` or your deployment environment:
+Current profile split in this repo:
+
+- Local development uses `backend/.env` with `CACHE_BACKEND=memory`
+- Hosted deployments should use Redis, as shown in `backend/.env.railway.example`
+- You only need Redis locally if you specifically want deployment parity or shared cache behavior
+
+For local development, keep these in `backend/.env`:
 
 ```env
 ENABLE_CACHE=true
@@ -246,7 +255,7 @@ AGENT_RESPONSE_CACHE_MAX_ENTRIES=50
 REDIS_STRICT=false
 ```
 
-For Redis-backed deployments, also set:
+For hosted deployments, switch to Redis and set:
 
 ```env
 CACHE_BACKEND=redis
@@ -294,6 +303,8 @@ after the file has been chunked, embedded, and upserted. This reuses the same in
 
 - Use `docker compose up -d`
 - Keep `EMBEDDING_PROVIDER=ollama`
+- Keep `CACHE_BACKEND=memory`
+- Do not set `REDIS_URL` unless you intentionally want local Redis-backed cache behavior
 - Keep `QDRANT_HOST=qdrant`
 - Ollama is suitable for local development and fallback testing
 
@@ -302,6 +313,7 @@ after the file has been chunked, embedded, and upserted. This reuses the same in
 - **Frontend:** deploy `Docs/` to Vercel
 - **Backend provider:** prefer Groq for faster and more reliable live responses
 - **Embedding provider:** use FastEmbed on Railway instead of Ollama
+- **Cache backend:** switch to Redis with `CACHE_BACKEND=redis` and a real `REDIS_URL`
 - **Backend image:** use `Dockerfile.railway` so both `backend/` and `Docs/` are available in the container
 - Set `PUBLIC_SCRIBOT_API_BASE` in the Docs frontend to the deployed backend URL
 - Trigger indexing remotely with `POST /api/admin/index-docs` and monitor it via `GET /api/admin/index-docs/status`
@@ -321,7 +333,7 @@ after the file has been chunked, embedded, and upserted. This reuses the same in
 
 ## Environment Profiles
 
-### Local
+### Local (memory cache)
 
 ```env
 DEFAULT_PROVIDER=groq
@@ -339,7 +351,7 @@ QDRANT_PORT=6333
 QDRANT_COLLECTION=kdai_docs
 ```
 
-### Railway
+### Railway (Redis cache)
 
 ```env
 DEFAULT_PROVIDER=groq
