@@ -729,7 +729,12 @@ export default function ScriBotWidget() {
             <select
               className="scribot-provider-select"
               value={provider}
-              onChange={(e) => setProvider(e.target.value as ScribotProvider)}
+              onChange={(e) => {
+                const nextProvider = e.target.value
+                if (nextProvider === 'ollama' || nextProvider === 'groq') {
+                  setProvider(nextProvider)
+                }
+              }}
               aria-label="Select LLM provider"
             >
               <option value="ollama" disabled={providerAvailability.ollama === false}>
@@ -739,6 +744,9 @@ export default function ScriBotWidget() {
               <option value="groq">
                 {formatProviderLabel('groq', providerModels.groq)}
                 {providerAvailability.groq === false ? ' (Unavailable)' : ''}
+              </option>
+              <option value="openai" disabled>
+                OpenAI (Not enabled)
               </option>
             </select>
 
